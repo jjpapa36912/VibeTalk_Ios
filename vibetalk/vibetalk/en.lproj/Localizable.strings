@@ -1,0 +1,15 @@
+/* 
+  Localizable.strings
+  vibetalk
+
+  Created by 김동준 on 7/28/25.
+  
+*/
+"login_title" = "Login";
+"email_label" = "Email";
+"password_label" = "Password";
+"email_placeholder" = "example@email.com";
+"password_placeholder" = "••••••";
+"login_button" = "Login";
+"sign_up" = "Sign up";
+"forgot_password" = "Forgot password?";
