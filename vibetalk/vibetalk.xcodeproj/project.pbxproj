@@ -10,9 +10,22 @@
 		0A80CFD62E379E65009B998A /* vibetalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vibetalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0A80D00F2E37D0F7009B998A /* Exceptions for "vibetalk" folder in "vibetalk" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0A80CFD52E379E65009B998A /* vibetalk */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A80CFD82E379E65009B998A /* vibetalk */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0A80D00F2E37D0F7009B998A /* Exceptions for "vibetalk" folder in "vibetalk" target */,
+			);
 			path = vibetalk;
 			sourceTree = "<group>";
 		};
@@ -259,6 +272,8 @@
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = vibetalk/Info.plist;
+				INFOPLIST_KEY_NSContactsUsageDescription = "친구 목록을 불러오기 위해 연락처 접근 권한이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -287,6 +302,8 @@
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = vibetalk/Info.plist;
+				INFOPLIST_KEY_NSContactsUsageDescription = "친구 목록을 불러오기 위해 연락처 접근 권한이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

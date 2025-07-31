@@ -1,25 +1,14 @@
-////
-////  MainView.swift
-////  vibetalk
-////
-////  Created by 김동준 on 7/28/25.
-////
-//
-//import Foundation
-//import SwiftUI
-//
+import SwiftUI
+import Foundation
+
 struct FriendResponse: Codable, Identifiable {
     let id: Int
     let phoneNumber: String
     let appName: String
     let contactName: String
-    let statusMessage: String
+    let statusMessage: String?    // ✅ null 허용
     let profileImage: String?
 }
-
-import SwiftUI
-
-import SwiftUI
 
 struct MainView: View {
     @StateObject private var viewModel = MainViewModel()
@@ -27,7 +16,12 @@ struct MainView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ProfileHeaderView()
+                // ✅ friends까지 전달
+                ProfileHeaderView(
+                    userProfile: viewModel.userProfile,
+                    friends: viewModel.friends
+                )
+                
                 Divider()
                 
                 List(viewModel.friends) { friend in
@@ -40,7 +34,7 @@ struct MainView: View {
                         VStack(alignment: .leading) {
                             Text(friend.contactName.isEmpty ? friend.appName : friend.contactName)
                                 .font(.headline)
-                            Text(friend.statusMessage)
+                            Text(friend.statusMessage ?? "상태 메시지 없음")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -48,53 +42,76 @@ struct MainView: View {
                 }
             }
             .navigationTitle("친구")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        UserDefaults.standard.removeObject(forKey: "jwtToken")
-                        NotificationCenter.default.post(
-                            name: Foundation.Notification.Name("didLogout"),
-                            object: nil
-                        )
-                    }) {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.xmark")
-                            Text("로그아웃")
-                        }
-                    }
-                }
-            }
             .onAppear {
                 viewModel.syncContacts()
+                viewModel.fetchUserProfile()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("profileUpdated"))) { _ in
+                viewModel.fetchUserProfile()
             }
         }
         .navigationBarBackButtonHidden(true)
     }
 }
 
-
 struct ProfileHeaderView: View {
+    let userProfile: UserProfile?
+    let friends: [FriendResponse]   // ✅ 타입 수정
+    
     var body: some View {
         HStack {
-            Image("profile")
-                .resizable()
+            if let imageUrl = userProfile?.profileImageUrl,
+               let url = URL(string: "\(AppConfig.baseURL)\(imageUrl)") {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable()
+                    } else if phase.error != nil {
+                        Image(systemName: "person.circle")
+                            .resizable()
+                    } else {
+                        ProgressView()
+                    }
+                }
                 .frame(width: 50, height: 50)
                 .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle")
+                    .resizable()
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+            }
             
             VStack(alignment: .leading) {
-                Text("내 이름")
+                Text(userProfile?.name ?? "내 이름")
                     .font(.headline)
-                Text("상태 메시지")
+                Text(userProfile?.statusMessage ?? "상태 메시지 없음")
                     .font(.subheadline)
                     .foregroundColor(.gray)
             }
             Spacer()
             
             HStack(spacing: 20) {
-                Image(systemName: "magnifyingglass")
                 Image(systemName: "person.badge.plus")
-                Image(systemName: "music.note")
-                Image(systemName: "gearshape.fill")
+                
+                // ✅ 그룹 채팅 생성 화면 이동
+                NavigationLink(
+                    destination: CreateChatRoomView(friends: friends)
+                ) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                }
+                
+                // ✅ 프로필 수정 버튼
+                NavigationLink(
+                    destination: ProfileEditView(
+                        currentProfile: userProfile ?? UserProfile(
+                            name: "",
+                            statusMessage: "",
+                            profileImageUrl: nil
+                        )
+                    )
+                ) {
+                    Image(systemName: "gearshape.fill")
+                }
             }
             .font(.title3)
         }

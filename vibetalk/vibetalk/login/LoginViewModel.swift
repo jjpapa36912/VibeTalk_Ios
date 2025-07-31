@@ -42,9 +42,9 @@ final class LoginViewModel: ObservableObject {
     
     func login(completion: @escaping (Bool) -> Void) {
         #if DEBUG
-        let serverURL = "\(AppConfig.baseURL)/auth/login"
+        let serverURL = "\(AppConfig.baseURL)/api/auth/login"
         #else
-        let serverURL = "\(AppConfig.baseURL)/auth/login"
+        let serverURL = "\(AppConfig.baseURL)/api/auth/login"
         #endif
         
         guard let url = URL(string: serverURL) else { return }
@@ -88,9 +88,9 @@ final class LoginViewModel: ObservableObject {
     
     func register() {
         #if DEBUG
-        let serverURL = "\(AppConfig.baseURL)/auth/register"
+        let serverURL = "\(AppConfig.baseURL)/api/auth/register"
         #else
-        let serverURL = "\(AppConfig.baseURL)/auth/register"
+        let serverURL = "\(AppConfig.baseURL)/api/auth/register"
         #endif
         
         guard let url = URL(string: serverURL) else { return }
@@ -133,9 +133,9 @@ final class LoginViewModel: ObservableObject {
     }
     func resetPassword(email: String) {
             #if DEBUG
-            let serverURL = "\(AppConfig.baseURL)/auth/reset-password"
+            let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
             #else
-            let serverURL = "\(AppConfig.baseURL)/auth/reset-password"
+            let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
             #endif
             
             guard let url = URL(string: serverURL) else { return }
