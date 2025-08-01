@@ -9,10 +9,10 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = LoginViewModel()
-    @State private var isLoggedIn = false
     @State private var showSignupSheet = false
     @State private var showResetSheet = false
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var appState: AppState
     
     var body: some View {
         NavigationStack {
@@ -38,8 +38,10 @@ struct ContentView: View {
                         .cornerRadius(8)
                     
                     Button(action: {
-                        viewModel.login { success in
-                            if success { isLoggedIn = true }
+                        viewModel.login { success, token in
+                            if success, let token = token {
+                                appState.loginSuccess(token: token)
+                            }
                         }
                     }) {
                         Text("로그인")
@@ -50,7 +52,6 @@ struct ContentView: View {
                             .cornerRadius(8)
                     }
                     
-                    // 🔹 회원가입 / 비밀번호 찾기 버튼 복원
                     HStack {
                         Button("회원가입") {
                             showSignupSheet = true
@@ -82,19 +83,10 @@ struct ContentView: View {
                 .sheet(isPresented: $showResetSheet) {
                     ResetPasswordView(viewModel: viewModel)
                 }
-                
-                NavigationLink("", destination: MainView(), isActive: $isLoggedIn)
-                    .hidden()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .didLogout)) { _ in
-            viewModel.email = ""
-            viewModel.password = ""
-            isLoggedIn = false
         }
     }
 }
-
 
 
 

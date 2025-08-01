@@ -39,7 +39,50 @@ final class LoginViewModel: ObservableObject {
     @Published var signupPassword: String = ""
 
     private var cancellables = Set<AnyCancellable>()
-    
+    func login(completion: @escaping (Bool, String?) -> Void) {
+        guard let url = URL(string: "\(AppConfig.baseURL)/api/auth/login") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: String] = [
+            "email": email,
+            "password": password
+        ]
+        
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.alertMessage = "네트워크 오류: \(error.localizedDescription)"
+                    self.showAlert = true
+                    completion(false, nil)
+                }
+                return
+            }
+            
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let token = json["token"] as? String else {
+                DispatchQueue.main.async {
+                    self.alertMessage = "로그인 실패"
+                    self.showAlert = true
+                    completion(false, nil)
+                }
+                return
+            }
+            
+            // ✅ 토큰 저장
+            UserDefaults.standard.set(token, forKey: "jwtToken")
+            
+            DispatchQueue.main.async {
+                completion(true, token)
+            }
+        }.resume()
+    }
+
     func login(completion: @escaping (Bool) -> Void) {
         #if DEBUG
         let serverURL = "\(AppConfig.baseURL)/api/auth/login"

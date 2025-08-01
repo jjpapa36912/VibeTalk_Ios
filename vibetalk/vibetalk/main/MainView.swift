@@ -1,29 +1,33 @@
 import SwiftUI
 import Foundation
 
+
 struct FriendResponse: Codable, Identifiable {
     let id: Int
     let phoneNumber: String
     let appName: String
     let contactName: String
-    let statusMessage: String?    // ✅ null 허용
+    let statusMessage: String?
     let profileImage: String?
 }
 
 struct MainView: View {
     @StateObject private var viewModel = MainViewModel()
-    
+    @EnvironmentObject var appState: AppState
+
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // ✅ friends까지 전달
                 ProfileHeaderView(
                     userProfile: viewModel.userProfile,
-                    friends: viewModel.friends
+                    friends: viewModel.friends,
+                    currentUserId: viewModel.userId
                 )
                 
                 Divider()
                 
+                // ✅ 친구 목록
                 List(viewModel.friends) { friend in
                     HStack {
                         Image(systemName: "person.circle")
@@ -41,7 +45,15 @@ struct MainView: View {
                     }
                 }
             }
-            .navigationTitle("친구")
+            .navigationTitle("친구 목록")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("로그아웃") {
+                        viewModel.logout()
+                        appState.logout()
+                    }
+                }
+            }
             .onAppear {
                 viewModel.syncContacts()
                 viewModel.fetchUserProfile()
@@ -54,10 +66,16 @@ struct MainView: View {
     }
 }
 
+
 struct ProfileHeaderView: View {
     let userProfile: UserProfile?
-    let friends: [FriendResponse]   // ✅ 타입 수정
-    
+    let friends: [FriendResponse]
+    @StateObject private var viewModel = MainViewModel()
+
+    let currentUserId: Int
+    @EnvironmentObject var appState: AppState   // ✅ 추가
+
+
     var body: some View {
         HStack {
             if let imageUrl = userProfile?.profileImageUrl,
@@ -93,17 +111,21 @@ struct ProfileHeaderView: View {
             HStack(spacing: 20) {
                 Image(systemName: "person.badge.plus")
                 
-                // ✅ 그룹 채팅 생성 화면 이동
-                NavigationLink(
-                    destination: CreateChatRoomView(friends: friends)
+                NavigationLink(destination:
+                    CreateChatRoomView(
+                        friends: viewModel.friends,
+                        currentUserId: currentUserId
+                    )
+                    .environmentObject(appState) // ✅ 이제 정상 작동
                 ) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Label("새 그룹 채팅 만들기", systemImage: "bubble.left.and.bubble.right.fill")
                 }
+
                 
-                // ✅ 프로필 수정 버튼
                 NavigationLink(
                     destination: ProfileEditView(
                         currentProfile: userProfile ?? UserProfile(
+                            id: 0,
                             name: "",
                             statusMessage: "",
                             profileImageUrl: nil

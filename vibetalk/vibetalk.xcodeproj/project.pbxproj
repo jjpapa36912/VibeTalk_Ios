@@ -6,8 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0A80D3AA2E3D16C9009B998A /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */; };
+		DA592E84CED18F57B32465B1 /* Pods_vibetalk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C64418F27244304451065ECA /* Pods_vibetalk.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		0A80CFD62E379E65009B998A /* vibetalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vibetalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.release.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.release.xcconfig"; sourceTree = "<group>"; };
+		432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.debug.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.debug.xcconfig"; sourceTree = "<group>"; };
+		C64418F27244304451065ECA /* Pods_vibetalk.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vibetalk.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +45,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA592E84CED18F57B32465B1 /* Pods_vibetalk.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -45,8 +55,11 @@
 		0A80CFCD2E379E65009B998A = {
 			isa = PBXGroup;
 			children = (
+				0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */,
 				0A80CFD82E379E65009B998A /* vibetalk */,
 				0A80CFD72E379E65009B998A /* Products */,
+				5EA99D7DAA07E6460F3381AF /* Pods */,
+				BB65A0872DA0AA852B08BE53 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -58,6 +71,23 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		5EA99D7DAA07E6460F3381AF /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */,
+				1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		BB65A0872DA0AA852B08BE53 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C64418F27244304451065ECA /* Pods_vibetalk.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -65,9 +95,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0A80CFE12E379E67009B998A /* Build configuration list for PBXNativeTarget "vibetalk" */;
 			buildPhases = (
+				9A1E25CAD662EBF2116D5FA6 /* [CP] Check Pods Manifest.lock */,
 				0A80CFD22E379E65009B998A /* Sources */,
 				0A80CFD32E379E65009B998A /* Frameworks */,
 				0A80CFD42E379E65009B998A /* Resources */,
+				ED1C70F7537C93BB3B6950E0 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -77,8 +109,6 @@
 				0A80CFD82E379E65009B998A /* vibetalk */,
 			);
 			name = vibetalk;
-			packageProductDependencies = (
-			);
 			productName = vibetalk;
 			productReference = 0A80CFD62E379E65009B998A /* vibetalk.app */;
 			productType = "com.apple.product-type.application";
@@ -123,10 +153,57 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A80D3AA2E3D16C9009B998A /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9A1E25CAD662EBF2116D5FA6 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-vibetalk-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		ED1C70F7537C93BB3B6950E0 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0A80CFD22E379E65009B998A /* Sources */ = {
@@ -178,7 +255,7 @@
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -243,7 +320,7 @@
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -264,11 +341,13 @@
 		};
 		0A80CFE22E379E67009B998A /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -283,7 +362,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jjpapa.vibetalk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -294,11 +373,13 @@
 		};
 		0A80CFE32E379E67009B998A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -313,7 +394,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jjpapa.vibetalk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

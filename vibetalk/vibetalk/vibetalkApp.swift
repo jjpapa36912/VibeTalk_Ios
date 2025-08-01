@@ -4,28 +4,28 @@
 //
 //  Created by 김동준 on 7/28/25.
 //
-
 import SwiftUI
 
 @main
 struct vibetalkApp: App {
-    // ✅ 앱 전체에서 로그인 상태 관리
-    @State private var isLoggedIn = UserDefaults.standard.string(forKey: "jwtToken") != nil
-    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var appState = AppState()
+
     var body: some Scene {
         WindowGroup {
-            if isLoggedIn {
-                MainView()
-                    .onReceive(NotificationCenter.default.publisher(for: .didLogout)) { _ in
-                        // 로그아웃 시 로그인 화면으로 전환
-                        isLoggedIn = false
+            if appState.isLoggedIn {
+                MainTabView()
+                    .environmentObject(appState)
+                    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OpenChatRoom"))) { notification in
+                        if let roomId = notification.object as? Int {
+                            print("🔔 푸시 클릭 → 채팅방 열기: \(roomId)")
+                            appState.selectedTab = 1
+                            appState.path.append(ChatRoomResponse(id: roomId, roomName: "알림으로 열림"))
+                        }
                     }
             } else {
                 ContentView()
-                    .onReceive(NotificationCenter.default.publisher(for: .didLogin)) { _ in
-                        // 로그인 성공 시 메인 화면으로 전환
-                        isLoggedIn = true
-                    }
+                    .environmentObject(appState)
             }
         }
     }

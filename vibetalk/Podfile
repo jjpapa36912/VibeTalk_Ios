@@ -1,0 +1,13 @@
+# Uncomment the next line to define a global platform for your project
+# platform :ios, '9.0'
+
+target 'vibetalk' do
+  # Comment the next line if you don't want to use dynamic frameworks
+  use_frameworks!
+  pod 'Starscream', '~> 4.0.4'
+pod "StompClientLib"
+# Firebase Core
+  pod 'Firebase/Core'
+  # Firebase Messaging (푸시 알림)
+  pod 'Firebase/Messaging'
+end
