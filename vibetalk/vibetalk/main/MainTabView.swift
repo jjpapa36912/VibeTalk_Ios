@@ -41,10 +41,10 @@ struct MainTabView: View {
                 viewModel.fetchUserProfile()
                 viewModel.syncContacts()
             }
-            .onDisappear {
-                print("🔌 [MainTabView] onDisappear → STOMP 해제")
-                badgeViewModel.disconnect()
-            }
+//            .onDisappear {
+//                print("🔌 [MainTabView] onDisappear → STOMP 해제")
+//                badgeViewModel.disconnect()
+//            }
             .navigationTitle(appState.selectedTab == 0 ? "친구" : "채팅")
             .navigationDestination(for: ChatRoomResponse.self) { room in
                 // ✅ 방 생성 후 자동으로 채팅방 화면으로 이동

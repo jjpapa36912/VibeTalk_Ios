@@ -43,7 +43,6 @@ final class LoginViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     
-    // ✅ 로그인 함수
     func login(completion: @escaping (Bool) -> Void) {
         let serverURL = "\(AppConfig.baseURL)/api/auth/login"
         guard let url = URL(string: serverURL) else { return }
@@ -77,11 +76,22 @@ final class LoginViewModel: ObservableObject {
                 // ✅ JWT 토큰 저장
                 UserDefaults.standard.set(response.token, forKey: "jwtToken")
                 
-                // ✅ FCM 토큰 서버로 전송
-                if let fcmToken = Messaging.messaging().fcmToken {
-                    print("🔥 [LoginViewModel] 현재 FCM 토큰: \(fcmToken)")
+                // ✅ 1. Firebase에서 최신 FCM 토큰 확인
+                var tokenToSend: String? = Messaging.messaging().fcmToken
+                
+                // ✅ 2. 만약 nil이면 UserDefaults에 저장된 캐시 사용
+                if tokenToSend == nil {
+                    tokenToSend = UserDefaults.standard.string(forKey: "fcmToken")
+                    if let cachedToken = tokenToSend {
+                        print("🔥 [LoginViewModel] 캐시된 FCM 토큰 사용: \(cachedToken)")
+                    }
+                }
+                
+                // ✅ 3. 서버로 FCM 토큰 전송
+                if let finalToken = tokenToSend {
+                    print("🔥 [LoginViewModel] 서버에 FCM 토큰 전송: \(finalToken)")
                     (UIApplication.shared.delegate as? AppDelegate)?
-                        .updateDeviceTokenToServer(fcmToken)
+                        .updateDeviceTokenToServer(finalToken)
                 } else {
                     print("⚠️ [LoginViewModel] FCM 토큰을 가져올 수 없습니다")
                 }

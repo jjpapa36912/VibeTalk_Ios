@@ -7,18 +7,24 @@ class UnreadBadgeViewModel: ObservableObject {
     private var currentUserId: Int = 0
     
     func connectForUnread(userId: Int) {
-        self.currentUserId = userId
-        
-        #if DEBUG
-        let url = NSURL(string: "ws://localhost:8080/ws/websocket")! // 로컬 디버그용
-        #else
-        let url = NSURL(string: "ws://13.124.208.108:8080/ws/websocket")! // 실제 서버 주소
-        #endif
-        socketClient.openSocketWithURLRequest(
-            request: NSURLRequest(url: url as URL),
-            delegate: self
-        )
-    }
+            self.currentUserId = userId
+            guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+            
+            #if DEBUG
+            let urlString = "ws://172.30.1.41:8080/ws/websocket?token=\(token)"
+            #else
+            let urlString = "wss://13.124.208.108/ws/websocket?token=\(token)"
+            #endif
+            
+            let url = NSURL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)!
+            let request = NSURLRequest(url: url as URL)
+            
+            socketClient.openSocketWithURLRequest(
+                request: request,
+                delegate: self
+            )
+            print("🔌 [UnreadBadgeViewModel] STOMP 서버 연결 시도")
+        }
     
     func disconnect() {
         socketClient.disconnect()

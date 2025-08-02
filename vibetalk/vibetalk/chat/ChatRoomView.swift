@@ -4,6 +4,12 @@ struct ChatMember: Codable, Identifiable {
     let name: String
     let statusMessage: String?
     let profileImageUrl: String?
+    enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case statusMessage
+            case profileImageUrl = "profileImageUrl" // ✅ 서버 JSON과 일치시킴
+        }
 }
 
 
