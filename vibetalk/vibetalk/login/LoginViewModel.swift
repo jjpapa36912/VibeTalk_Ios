@@ -7,6 +7,8 @@
 
 import Foundation
 import Combine
+import FirebaseMessaging
+import UIKit
 
 struct LoginResponse: Codable {
     let userId: Int
@@ -20,6 +22,7 @@ struct SignupResponse: Codable {
     let email: String
     let name: String
 }
+
 struct PasswordResetResponse: Codable {
     let success: Bool
     let message: String
@@ -39,57 +42,10 @@ final class LoginViewModel: ObservableObject {
     @Published var signupPassword: String = ""
 
     private var cancellables = Set<AnyCancellable>()
-    func login(completion: @escaping (Bool, String?) -> Void) {
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/auth/login") else { return }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: String] = [
-            "email": email,
-            "password": password
-        ]
-        
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.alertMessage = "네트워크 오류: \(error.localizedDescription)"
-                    self.showAlert = true
-                    completion(false, nil)
-                }
-                return
-            }
-            
-            guard let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let token = json["token"] as? String else {
-                DispatchQueue.main.async {
-                    self.alertMessage = "로그인 실패"
-                    self.showAlert = true
-                    completion(false, nil)
-                }
-                return
-            }
-            
-            // ✅ 토큰 저장
-            UserDefaults.standard.set(token, forKey: "jwtToken")
-            
-            DispatchQueue.main.async {
-                completion(true, token)
-            }
-        }.resume()
-    }
-
+    
+    // ✅ 로그인 함수
     func login(completion: @escaping (Bool) -> Void) {
-        #if DEBUG
         let serverURL = "\(AppConfig.baseURL)/api/auth/login"
-        #else
-        let serverURL = "\(AppConfig.baseURL)/api/auth/login"
-        #endif
-        
         guard let url = URL(string: serverURL) else { return }
         
         var request = URLRequest(url: url)
@@ -112,30 +68,33 @@ final class LoginViewModel: ObservableObject {
                 if case .failure(_) = result {
                     self.alertMessage = "사용자 정보가 올바르지 않습니다."
                     self.showAlert = true
-                    completion(false) // ❌ 실패 시 false 반환
+                    completion(false)
                 }
             }, receiveValue: { response in
                 self.loginResult = "✅ 로그인 성공! 사용자: \(response.name)"
                 print("🔑 JWT 토큰: \(response.token)")
                 
-                // JWT 토큰 저장 (자동 로그인)
+                // ✅ JWT 토큰 저장
                 UserDefaults.standard.set(response.token, forKey: "jwtToken")
                 
-                completion(true) // ✅ 성공 시 true 반환
+                // ✅ FCM 토큰 서버로 전송
+                if let fcmToken = Messaging.messaging().fcmToken {
+                    print("🔥 [LoginViewModel] 현재 FCM 토큰: \(fcmToken)")
+                    (UIApplication.shared.delegate as? AppDelegate)?
+                        .updateDeviceTokenToServer(fcmToken)
+                } else {
+                    print("⚠️ [LoginViewModel] FCM 토큰을 가져올 수 없습니다")
+                }
+                
+                completion(true)
                 NotificationCenter.default.post(name: .didLogin, object: nil)
-
             })
             .store(in: &cancellables)
     }
 
-    
+    // ✅ 회원가입 함수
     func register() {
-        #if DEBUG
         let serverURL = "\(AppConfig.baseURL)/api/auth/register"
-        #else
-        let serverURL = "\(AppConfig.baseURL)/api/auth/register"
-        #endif
-        
         guard let url = URL(string: serverURL) else { return }
         
         var request = URLRequest(url: url)
@@ -174,38 +133,34 @@ final class LoginViewModel: ObservableObject {
             }
         }.resume()
     }
+    
+    // ✅ 비밀번호 재설정 함수
     func resetPassword(email: String) {
-            #if DEBUG
-            let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
-            #else
-            let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
-            #endif
-            
-            guard let url = URL(string: serverURL) else { return }
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            let body = ["email": email]
-            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-            
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        self.alertMessage = "비밀번호 재설정 실패: \(error.localizedDescription)"
-                        self.showAlert = true
-                    }
-                    return
+        let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
+        guard let url = URL(string: serverURL) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = ["email": email]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.alertMessage = "비밀번호 재설정 실패: \(error.localizedDescription)"
+                    self.showAlert = true
                 }
-                guard let data = data else { return }
-                
-                if let result = try? JSONDecoder().decode(PasswordResetResponse.self, from: data) {
-                    DispatchQueue.main.async {
-                        self.alertMessage = result.message
-                        self.showAlert = true
-                    }
+                return
+            }
+            guard let data = data else { return }
+            
+            if let result = try? JSONDecoder().decode(PasswordResetResponse.self, from: data) {
+                DispatchQueue.main.async {
+                    self.alertMessage = result.message
+                    self.showAlert = true
                 }
-            }.resume()
-        }
+            }
+        }.resume()
+    }
 }
-

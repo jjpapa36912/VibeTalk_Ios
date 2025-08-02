@@ -61,10 +61,11 @@ final class MainViewModel: ObservableObject {
     func syncContacts() {
         #if targetEnvironment(simulator)
         print("🧑‍💻 시뮬레이터 감지 → 임의 친구 표시")
-        self.friends = [
-            FriendResponse(id: 1, phoneNumber: "01011112222", appName: "김시뮬", contactName: "시뮬친구", statusMessage: "테스트 중", profileImage: nil),
-            FriendResponse(id: 2, phoneNumber: "01033334444", appName: "박테스트", contactName: "테스트친구", statusMessage: "시뮬레이터", profileImage: nil)
-        ]
+        DispatchQueue.main.async {
+            self.friends = [
+                FriendResponse(id: 2, phoneNumber: "01012345678", appName: "테스트유저", contactName: "테스트", statusMessage: "Hello", profileImage: nil)
+            ]
+        }
         #else
         ContactService.shared.fetchContacts { contacts in
             guard let url = URL(string: "\(AppConfig.baseURL)/api/friends/sync") else { return }

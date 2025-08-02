@@ -58,16 +58,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("❌ [AppDelegate] 원격 알림 등록 실패: \(error.localizedDescription)")
     }
+    
 
     /// ✅ FCM 토큰 수신
-    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        guard let fcmToken = fcmToken else { return }
-        print("🔑 [AppDelegate] FCM 토큰 수신: \(fcmToken)")
-
-        // UserDefaults에 저장 후 서버로 전송
-        UserDefaults.standard.set(fcmToken, forKey: "deviceToken")
-        sendDeviceTokenToServer(token: fcmToken)
-    }
+    // ✅ FCM 토큰 갱신 시 호출
+        func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+            print("🔥 발급받은 FCM 토큰:", fcmToken ?? "")
+            if let token = fcmToken {
+                updateDeviceTokenToServer(token)
+            }
+        }
 
     /// ✅ 서버에 토큰 전송
     private func sendDeviceTokenToServer(token: String) {
@@ -106,4 +106,25 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
         completionHandler()
     }
+    func updateDeviceTokenToServer(_ fcmToken: String) {
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+        
+        let url = URL(string: "\(AppConfig.baseURL)/api/device-token")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: String] = ["deviceToken": fcmToken]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("❌ FCM 토큰 업데이트 실패:", error)
+                return
+            }
+            print("✅ FCM 토큰 업데이트 성공")
+        }.resume()
+    }
+
 }

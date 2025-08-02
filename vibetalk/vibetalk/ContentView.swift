@@ -38,12 +38,14 @@ struct ContentView: View {
                         .cornerRadius(8)
                     
                     Button(action: {
-                        viewModel.login { success, token in
-                            if success, let token = token {
-                                appState.loginSuccess(token: token)
+                        viewModel.login { success in
+                            if success {
+                                if let token = UserDefaults.standard.string(forKey: "jwtToken") {
+                                    appState.loginSuccess(token: token)
+                                }
                             }
                         }
-                    }) {
+                    })  {
                         Text("로그인")
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)

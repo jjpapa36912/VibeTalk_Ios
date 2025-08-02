@@ -3,14 +3,16 @@ import SwiftUI
 
 import SwiftUI
 
+
 struct MainTabView: View {
     @StateObject private var badgeViewModel = UnreadBadgeViewModel()
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = MainViewModel()
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $appState.path) {   // ✅ NavigationStack에 path 추가
             TabView(selection: $appState.selectedTab) {
+                
                 // 친구 탭
                 FriendTabView(viewModel: viewModel)
                     .tabItem {
@@ -44,9 +46,15 @@ struct MainTabView: View {
                 badgeViewModel.disconnect()
             }
             .navigationTitle(appState.selectedTab == 0 ? "친구" : "채팅")
+            .navigationDestination(for: ChatRoomResponse.self) { room in
+                // ✅ 방 생성 후 자동으로 채팅방 화면으로 이동
+                ChatRoomView(room: room, currentUserId: viewModel.userId)
+                    .environmentObject(appState)
+            }
         }
     }
 }
+
 
 
 // ✅ 커스텀 Badge Modifier

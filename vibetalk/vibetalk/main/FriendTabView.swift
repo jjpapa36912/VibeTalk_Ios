@@ -86,11 +86,10 @@ struct FriendTabView: View {
                 onRoomCreated: { room in
                     // ✅ 방 생성 성공 시 Sheet 닫고 Path에 추가
                     showCreateRoom = false
-                    appState.path.append(room)
+                    appState.path.append(room)   // ✅ NavigationStack 자동 이동
                 }
             )
             .environmentObject(appState)
         }
-
     }
 }
