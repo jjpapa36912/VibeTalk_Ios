@@ -24,7 +24,7 @@ class ChatService {
     func createChatRoom(userIds: [Int], creatorId: Int, roomName: String,
                         completion: @escaping (Result<ChatRoomResponse, Error>) -> Void) {
 
-        guard let url = URL(string: "\(AppConfig.baseURL)/chat/room"),
+        guard let url = URL(string: "\(AppConfig.baseURL)/api/chat/rooms"),
               let token = UserDefaults.standard.string(forKey: "jwtToken") else {
             print("❌ [ChatService] URL 또는 토큰 없음")
             return

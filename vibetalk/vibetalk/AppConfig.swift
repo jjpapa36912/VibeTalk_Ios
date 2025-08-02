@@ -9,8 +9,8 @@ import Foundation
 
 enum AppConfig {
     #if DEBUG
-//    static let baseURL = "http://192.0.0.2:8080"
-    static let baseURL = "http://localhost:8080"
+    static let baseURL = "http://172.30.1.41:8080"
+//    static let baseURL = "http://localhost:8080"
     #else
     static let baseURL = "http://13.124.208.108:8080"
     #endif

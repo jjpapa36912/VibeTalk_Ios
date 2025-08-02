@@ -20,11 +20,7 @@ class ChatStompManager: ObservableObject {
             return
         }
 
-        #if DEBUG
-        let urlString = "ws://192.0.0.2:8080/ws/websocket?token=\(token)"
-        #else
-        let urlString = "wss://13.124.208.108/ws/websocket?token=\(token)"
-        #endif
+        let urlString = "\(AppConfig.baseURL)/ws/websocket?token=\(token)"
 
         let url = NSURL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)!
         let request = NSURLRequest(url: url as URL)
