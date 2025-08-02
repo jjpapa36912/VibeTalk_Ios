@@ -27,6 +27,7 @@ struct ChatRoomResponse: Identifiable, Codable, Hashable {
 struct ChatRoomListView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = ChatRoomListViewModel()
+    @State private var isShowingCreateRoom = false   // ✅ Sheet 제어
     let currentUserId: Int
     
     var body: some View {
@@ -37,53 +38,46 @@ struct ChatRoomListView: View {
                         roomRow(room)
                     }
                 }
-                .navigationDestination(for: ChatRoomResponse.self) { room in
-                    ChatRoomView(
-                        room: room,
-                        currentUserId: currentUserId
-                    )
-                    .environmentObject(appState)
-                    .onAppear {
-                            print("🚀 NavigationDestination(ChatRoomResponse) 호출됨 → roomId: \(room.id)")
-                        }
-                }
-
                 .navigationDestination(for: ChatRoomListItem.self) { room in
                     ChatRoomView(
                         room: ChatRoomResponse(id: room.id, roomName: room.roomName),
                         currentUserId: currentUserId
                     )
                     .environmentObject(appState)
-                    .onAppear {
-                        print("🚀 NavigationDestination(ChatRoomListItem) 호출됨 → roomId: \(room.id)")
-                        }
                 }
-
+                .navigationDestination(for: ChatRoomResponse.self) { room in
+                    ChatRoomView(
+                        room: room,
+                        currentUserId: currentUserId
+                    )
+                    .environmentObject(appState)
+                }
                 
-                // ✅ 친구 선택 화면으로 이동하는 버튼 추가
                 Button(action: {
                     print("📌 새 그룹 채팅 만들기 클릭")
-                    appState.path.append("createRoom")   // 경로로 이동
+                    isShowingCreateRoom = true
                 }) {
                     Label("새 그룹 채팅 만들기", systemImage: "bubble.left.and.bubble.right.fill")
                         .font(.headline)
                         .padding()
                 }
             }
-            // ✅ String 타입 destination 정의
-            .navigationDestination(for: String.self) { value in
-                if value == "createRoom" {
-                    CreateChatRoomView(
-                        friends: viewModel.friends,  // 여기에 friends 데이터를 로딩해야 함
-                        currentUserId: currentUserId
-                    )
-                    .environmentObject(appState)
-                }
-            }
             .navigationTitle("채팅방")
             .onAppear {
                 viewModel.fetchChatRooms()
-                viewModel.fetchFriends()   // ✅ 친구 목록 로딩
+                viewModel.fetchFriends()
+            }
+            // ✅ Modal Sheet 추가
+            .sheet(isPresented: $isShowingCreateRoom) {
+                CreateChatRoomView(
+                    friends: viewModel.friends,
+                    currentUserId: currentUserId,
+                    onRoomCreated: { room in
+                        isShowingCreateRoom = false
+                        appState.path.append(room)
+                    }
+                )
+                .environmentObject(appState)
             }
         }
     }

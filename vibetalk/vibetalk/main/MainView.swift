@@ -114,12 +114,16 @@ struct ProfileHeaderView: View {
                 NavigationLink(destination:
                     CreateChatRoomView(
                         friends: viewModel.friends,
-                        currentUserId: currentUserId
+                        currentUserId: currentUserId,
+                        onRoomCreated: { room in
+                            appState.path.append(room)   // ✅ 방 생성 후 바로 ChatRoomView로 이동
+                        }
                     )
-                    .environmentObject(appState) // ✅ 이제 정상 작동
+                    .environmentObject(appState)
                 ) {
                     Label("새 그룹 채팅 만들기", systemImage: "bubble.left.and.bubble.right.fill")
                 }
+
 
                 
                 NavigationLink(

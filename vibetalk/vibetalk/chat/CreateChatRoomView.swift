@@ -7,10 +7,10 @@ struct CreateChatRoomView: View {
     @State private var isCreatingRoom = false
     let friends: [FriendResponse]
     let currentUserId: Int
+    let onRoomCreated: (ChatRoomResponse) -> Void   // ✅ 콜백 추가
     
     var body: some View {
         VStack {
-            // ✅ 선택된 친구 프로필 상단 표시
             if !selectedFriends.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -30,7 +30,6 @@ struct CreateChatRoomView: View {
                 }
             }
             
-            // ✅ 친구 선택 리스트
             List(friends) { friend in
                 HStack {
                     Text(friend.contactName.isEmpty ? friend.appName : friend.contactName)
@@ -51,7 +50,6 @@ struct CreateChatRoomView: View {
             
             Spacer()
             
-            // ✅ 방 생성 버튼
             Button(action: {
                 print("📌 방 생성 버튼 클릭됨")
                 guard !isCreatingRoom else { return }
@@ -70,16 +68,7 @@ struct CreateChatRoomView: View {
                         switch result {
                         case .success(let room):
                             print("✅ 방 생성 성공: \(room)")
-                            
-                            print("📌 방 생성 전 Path 상태:", appState.path)
-                            if !appState.path.isEmpty {
-                                appState.path.removeLast()
-                                print("📌 createRoom pop 후 Path 상태:", appState.path)
-                            }
-                            
-                            appState.path.append(room)
-                            print("📌 ChatRoomResponse append 후 Path 상태:", appState.path)
-                            
+                            onRoomCreated(room)
                         case .failure(let error):
                             print("❌ 방 생성 실패: \(error.localizedDescription)")
                         }
