@@ -7,13 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0A80D3AA2E3D16C9009B998A /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */; };
 		DA592E84CED18F57B32465B1 /* Pods_vibetalk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C64418F27244304451065ECA /* Pods_vibetalk.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0A80CFD62E379E65009B998A /* vibetalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vibetalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.release.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.release.xcconfig"; sourceTree = "<group>"; };
 		432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.debug.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.debug.xcconfig"; sourceTree = "<group>"; };
 		C64418F27244304451065ECA /* Pods_vibetalk.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vibetalk.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -55,7 +53,6 @@
 		0A80CFCD2E379E65009B998A = {
 			isa = PBXGroup;
 			children = (
-				0A80D3A92E3D16C9009B998A /* GoogleService-Info.plist */,
 				0A80CFD82E379E65009B998A /* vibetalk */,
 				0A80CFD72E379E65009B998A /* Products */,
 				5EA99D7DAA07E6460F3381AF /* Pods */,
@@ -153,7 +150,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0A80D3AA2E3D16C9009B998A /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
