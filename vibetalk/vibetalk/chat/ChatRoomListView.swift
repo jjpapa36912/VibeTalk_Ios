@@ -17,7 +17,7 @@ struct ChatParticipant: Codable, Hashable {
 }
 
 // 기존 ChatRoomResponse와 동일하게 맞춤
-struct ChatRoomResponse: Identifiable, Codable , Hashable{
+struct ChatRoomResponse: Identifiable, Codable, Hashable {
     let id: Int
     let roomName: String
 }
@@ -37,13 +37,28 @@ struct ChatRoomListView: View {
                         roomRow(room)
                     }
                 }
+                .navigationDestination(for: ChatRoomResponse.self) { room in
+                    ChatRoomView(
+                        room: room,
+                        currentUserId: currentUserId
+                    )
+                    .environmentObject(appState)
+                    .onAppear {
+                            print("🚀 NavigationDestination(ChatRoomResponse) 호출됨 → roomId: \(room.id)")
+                        }
+                }
+
                 .navigationDestination(for: ChatRoomListItem.self) { room in
                     ChatRoomView(
                         room: ChatRoomResponse(id: room.id, roomName: room.roomName),
                         currentUserId: currentUserId
                     )
                     .environmentObject(appState)
+                    .onAppear {
+                        print("🚀 NavigationDestination(ChatRoomListItem) 호출됨 → roomId: \(room.id)")
+                        }
                 }
+
                 
                 // ✅ 친구 선택 화면으로 이동하는 버튼 추가
                 Button(action: {
@@ -68,8 +83,7 @@ struct ChatRoomListView: View {
             .navigationTitle("채팅방")
             .onAppear {
                 viewModel.fetchChatRooms()
-                viewModel.fetchFriends()   // ✅ 추가
-
+                viewModel.fetchFriends()   // ✅ 친구 목록 로딩
             }
         }
     }

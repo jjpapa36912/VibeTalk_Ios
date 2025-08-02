@@ -41,6 +41,8 @@ struct ChatRoomView: View {
         }
         .navigationTitle(room?.roomName ?? "채팅방")
         .onAppear {
+            print("🟢 ChatRoomView onAppear → roomId: \(room?.id ?? -1)")
+
             if let roomId = room?.id {
                 stompManager.connect(roomId: roomId, userId: currentUserId)
                 markRoomAsRead(roomId: roomId)
