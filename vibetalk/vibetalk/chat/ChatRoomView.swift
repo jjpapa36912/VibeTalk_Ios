@@ -16,6 +16,8 @@ struct ChatMember: Codable, Identifiable {
 
 
 
+import SwiftUI
+
 struct ChatRoomView: View {
     @EnvironmentObject var appState: AppState
     let room: ChatRoomResponse?
@@ -27,7 +29,7 @@ struct ChatRoomView: View {
 
     var body: some View {
         VStack {
-            // ✅ 참가자 목록 (상단)
+            // ✅ 참가자 목록
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(members) { member in
@@ -60,12 +62,13 @@ struct ChatRoomView: View {
             // ✅ 메시지 목록
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(stompManager.messages, id: \.id) { msg in
+                    ForEach(stompManager.messages) { msg in
                         ChatBubbleView(message: msg, isCurrentUser: msg.senderId == currentUserId)
                     }
                 }
                 .padding(.horizontal)
             }
+
             
             // ✅ 메시지 입력창
             HStack {
@@ -89,10 +92,10 @@ struct ChatRoomView: View {
         .navigationTitle(room?.roomName ?? "채팅방")
         .onAppear {
             print("🟢 ChatRoomView onAppear → roomId: \(room?.id ?? -1)")
-
             if let roomId = room?.id {
-                fetchChatRoomMembers(roomId: roomId)   // ✅ 참가자 정보 로딩
-                stompManager.connect(roomId: roomId, userId: currentUserId)
+                fetchChatRoomMembers(roomId: roomId)
+                stompManager.fetchChatHistory(roomId: roomId) // ✅ 과거 메시지 로딩
+                stompManager.connect(roomId: roomId, userId: currentUserId) // ✅ 실시간 연결
                 markRoomAsRead(roomId: roomId)
             }
         }
@@ -120,7 +123,7 @@ struct ChatRoomView: View {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
                 print("❌ 멤버 조회 실패:", error.localizedDescription)
                 return

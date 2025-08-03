@@ -1,11 +1,12 @@
 import Foundation
 import Starscream
 
-struct ChatMessageModel: Identifiable, Codable {
-    let id = UUID()
+struct ChatMessageModel: Codable, Identifiable {
+    let id: Int
     let senderId: Int
     let senderName: String
-    let message: String
+    let content: String
+    let sentAt: String
 }
 
 class ChatWebSocketManager: ObservableObject {
@@ -18,11 +19,8 @@ class ChatWebSocketManager: ObservableObject {
         self.currentUserId = currentUserId
         
         // ✅ 방 ID를 쿼리 파라미터로 포함
-        #if DEBUG
-        let baseURL = "ws://localhost:8080/ws/websocket"
-        #else
-        let baseURL = "ws://13.124.208.108:8080/ws/websocket"
-        #endif
+        
+        let baseURL = "\(AppConfig.webSocketURL)/ws/websocket"
 
         guard let url = URL(string: "\(baseURL)?roomId=\(roomId)") else { return }
         var request = URLRequest(url: url)
@@ -32,19 +30,26 @@ class ChatWebSocketManager: ObservableObject {
     }
     
     func sendMessage(_ message: String) {
-        let msg = ChatMessageModel(senderId: currentUserId, senderName: "나", message: message)
-        
+        let msg = ChatMessageModel(
+            id: Int.random(in: 100000...999999), // 로컬에서 임시 ID 생성
+            senderId: currentUserId,
+            senderName: "나",
+            content: message,
+            sentAt: ISO8601DateFormatter().string(from: Date())
+        )
+
         // ✅ WebSocket으로 메시지 전송
         if let jsonData = try? JSONEncoder().encode(msg),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             socket?.write(string: jsonString)
         }
-        
-        // ✅ 로컬에도 즉시 추가 (서버 응답을 기다리지 않음)
+
+        // ✅ 로컬에 즉시 추가
         DispatchQueue.main.async {
             self.messages.append(msg)
         }
     }
+
     
     func disconnect() {
         socket?.disconnect()

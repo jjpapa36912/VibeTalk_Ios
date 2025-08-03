@@ -9,9 +9,20 @@ import Foundation
 
 enum AppConfig {
     #if DEBUG
-    static let baseURL = "http://172.30.1.41:8080"
+    static let baseURL = "http://172.30.1.73:8080"
 //    static let baseURL = "http://localhost:8080"
     #else
     static let baseURL = "http://13.124.208.108:8080"
     #endif
+    
+    // ✅ WebSocket URL
+    static var webSocketURL: String {
+        #if DEBUG
+        return "ws://172.30.1.73:8080/ws"
+        #else
+        return "wss://13.124.208.108/ws"
+        #endif
+    }
+
+
 }

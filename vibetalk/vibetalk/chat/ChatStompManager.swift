@@ -8,75 +8,84 @@ class ChatStompManager: ObservableObject {
     
     private(set) var currentRoomId: Int = 0
     private(set) var currentUserId: Int = 0
+
+    func fetchChatHistory(roomId: Int) {
+            // ✅ 서버에서 과거 메시지 가져오기
+            guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+            guard let url = URL(string: "\(AppConfig.baseURL)/chatroom/\(roomId)/messages") else { return }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            URLSession.shared.dataTask(with: request) { data, _, error in
+                guard let data = data, error == nil else { return }
+                do {
+                    let decoded = try JSONDecoder().decode([ChatMessageModel].self, from: data)
+                    DispatchQueue.main.async {
+                        self.messages = decoded
+                    }
+                } catch {
+                    print("❌ 메시지 디코딩 실패: \(error)")
+                }
+            }.resume()
+        }
     
-    // ✅ STOMP 연결
     func connect(roomId: Int, userId: Int) {
-        print("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌ ")
         self.currentRoomId = roomId
         self.currentUserId = userId
 
         guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-            print("❌ JWT 토큰 없음")
+            print("❌ [iOS] JWT 토큰 없음")
             return
         }
 
-        let urlString = "\(AppConfig.baseURL)/ws/websocket?token=\(token)"
+        let urlString = "\(AppConfig.webSocketURL)?token=\(token)"
+        print("🔌 [iOS] WebSocket 연결 URL: \(urlString)")
 
-        let url = NSURL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)!
-        let request = NSURLRequest(url: url as URL)
+        guard let url = URL(string: urlString) else {
+            print("❌ [iOS] URL 생성 실패")
+            return
+        }
+
+        let request = NSMutableURLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        print("🛠️ [iOS] WebSocket Authorization 헤더 추가 완료")
 
         socketClient.openSocketWithURLRequest(
-            request: request,
+            request: request as NSURLRequest,
             delegate: self
         )
 
-        print("🔌 [ChatStompManager] WebSocket 연결 시도 → URL 파라미터에 JWT 추가")
+        print("🚀 [iOS] WebSocket 연결 시도")
     }
 
-
-
-
-
-    // ✅ 연결 해제
     func disconnect() {
         socketClient.disconnect()
-        print("❌ [ChatStompManager] 연결 종료")
+        print("❌ [iOS] WebSocket 연결 종료")
     }
-    
-    // ✅ 메시지 전송
+
     func sendMessage(_ message: String) {
         let json: [String: Any] = [
+            "chatRoomId": currentRoomId,
             "senderId": currentUserId,
-            "senderName": "나",
-            "message": message
+            "content": message
         ]
+        print("📤 [iOS] 메시지 전송: \(json)")
         socketClient.sendJSONForDict(
             dict: json as NSDictionary,
             toDestination: "/app/chat.sendMessage/\(currentRoomId)"
         )
-        
-        DispatchQueue.main.async {
-            self.messages.append(ChatMessageModel(
-                senderId: self.currentUserId,
-                senderName: "나",
-                message: message
-            ))
-        }
     }
 }
 
 extension ChatStompManager: StompClientLibDelegate {
-    
-    // ✅ WebSocket 연결 완료
     func stompClientDidConnect(client: StompClientLib!) {
-        print("✅ STOMP 연결됨")
-
-        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-            print("❌ JWT 토큰 없음")
-            return
-        }
-
-        // 🔑 CONNECT 프레임을 수동으로 작성
+        print("✅ [iOS] STOMP 연결 성공")
+        
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+        
+        // 🔑 CONNECT 프레임 작성
         let connectFrame = """
         CONNECT
         accept-version:1.2
@@ -85,77 +94,44 @@ extension ChatStompManager: StompClientLibDelegate {
 
         \u{0000}
         """
-
-        // WebSocket 레벨에서 직접 프레임 전송
+        
+        // ✅ WebSocket에 직접 전송
         if let socket = client.value(forKey: "socket") as? WebSocket {
             socket.write(string: connectFrame)
-            print("🔑 STOMP CONNECT 프레임 헤더 전송 완료")
+            print("🔑 [iOS] STOMP CONNECT 프레임 전송 완료")
         }
-
-        // ✅ 방 구독
-        client.subscribe(destination: "/topic/room.\(currentRoomId)")
     }
 
 
-//    func stompClientDidConnect(client: StompClientLib!) {
-//        print("✅ STOMP 연결 성공")
-//
-//        // ✅ 방 구독
-//        client.subscribe(destination: "/topic/room.\(currentRoomId)")
-//    }
-    // ✅ 연결 종료
+
+
     func stompClientDidDisconnect(client: StompClientLib!) {
-        print("❌ [ChatStompManager] STOMP 연결 해제")
+        print("❌ [iOS] STOMP 연결 해제")
     }
-    
-    // ✅ 메시지 수신 (JSON)
-    func stompClient(
-        client: StompClientLib!,
-        didReceiveMessageWithJSONBody jsonBody: AnyObject?,
-        akaStringBody stringBody: String?,
-        withHeader header: [String : String]?,
-        withDestination destination: String
-    ) {
-        print("📩 JSON 메시지 수신: \(String(describing: jsonBody))")
-        if let dict = jsonBody as? [String: Any],
-           let senderId = dict["senderId"] as? Int,
-           let senderName = dict["senderName"] as? String,
-           let message = dict["message"] as? String {
-            DispatchQueue.main.async {
-                self.messages.append(ChatMessageModel(
-                    senderId: senderId,
-                    senderName: senderName,
-                    message: message
-                ))
-            }
-        }
+
+    func stompClientError(client: StompClientLib!, didReceiveErrorMessage description: String) {
+        print("⚠️ [iOS] STOMP 클라이언트 에러: \(description)")
     }
-    
-    // ✅ 메시지 수신 (String)
-    func stompClientJSONBody(
-        client: StompClientLib!,
-        didReceiveMessageWithJSONBody jsonBody: String?,
-        withHeader header: [String : String]?,
-        withDestination destination: String
-    ) {
-        print("📩 String 메시지 수신: \(jsonBody ?? "")")
-    }
-    
-    // ✅ 서버 에러 수신
+
     func serverDidSendError(client: StompClientLib!,
                             withErrorMessage description: String,
                             detailedErrorMessage message: String?) {
-        print("🚨 서버 에러: \(description) \(message ?? "")")
-        socketClient.disconnect()
+        print("🚨 [iOS] 서버 에러: \(description) | 세부: \(message ?? "없음")")
     }
-    
-    // ✅ Ping 응답
-    func serverDidSendPing() {
-        print("🏓 Ping")
-    }
-    
-    // ✅ Receipt 처리
+
     func serverDidSendReceipt(client: StompClientLib!, withReceiptId receiptId: String) {
-        print("🧾 Receipt: \(receiptId)")
+        print("🧾 [iOS] Receipt ID: \(receiptId)")
+    }
+
+    func serverDidSendPing() {
+        print("🏓 [iOS] 서버 Ping")
+    }
+
+    func stompClient(client: StompClientLib!,
+                     didReceiveMessageWithJSONBody jsonBody: AnyObject?,
+                     akaStringBody stringBody: String?,
+                     withHeader header: [String : String]?,
+                     withDestination destination: String) {
+        print("📩 [iOS] 메시지 수신: \(String(describing: stringBody))")
     }
 }

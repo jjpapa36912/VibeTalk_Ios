@@ -10,11 +10,8 @@ class UnreadBadgeViewModel: ObservableObject {
             self.currentUserId = userId
             guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
             
-            #if DEBUG
-            let urlString = "ws://172.30.1.41:8080/ws/websocket?token=\(token)"
-            #else
-            let urlString = "wss://13.124.208.108/ws/websocket?token=\(token)"
-            #endif
+            let urlString = "\(AppConfig.webSocketURL)/ws/websocket?token=\(token)"
+           
             
             let url = NSURL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)!
             let request = NSURLRequest(url: url as URL)
