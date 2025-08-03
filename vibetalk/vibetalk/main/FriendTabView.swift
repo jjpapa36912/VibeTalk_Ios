@@ -82,14 +82,18 @@ struct FriendTabView: View {
         .sheet(isPresented: $showCreateRoom) {
             CreateChatRoomView(
                 friends: viewModel.friends,
-                currentUserId: viewModel.userId,
                 onRoomCreated: { room in
-                    // ✅ 방 생성 성공 시 Sheet 닫고 Path에 추가
-                    showCreateRoom = false
-                    appState.path.append(room)   // ✅ NavigationStack 자동 이동
+                    print("🔄 MainView - 새 방 추가: \(room)")
+                    viewModel.fetchChatRooms()   // ✅ 목록 새로고침
+                    showCreateRoom = false       // ✅ Sheet 닫기
+                    
+                    // ✅ 방 생성 직후 ChatRoomView로 이동
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    appState.path.append(room)
+                                }
                 }
-            )
-            .environmentObject(appState)
+            ).environmentObject(appState)
         }
+        
     }
 }

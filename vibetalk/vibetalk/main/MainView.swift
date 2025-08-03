@@ -61,6 +61,11 @@ struct MainView: View {
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("profileUpdated"))) { _ in
                 viewModel.fetchUserProfile()
             }
+            // ✅ ChatRoomView로 네비게이션 연결
+            .navigationDestination(for: ChatRoomResponse.self) { room in
+                ChatRoomView(room: room, currentUserId: viewModel.userId)
+            }
+
         }
         .navigationBarBackButtonHidden(true)
     }
@@ -114,7 +119,6 @@ struct ProfileHeaderView: View {
                 NavigationLink(destination:
                     CreateChatRoomView(
                         friends: viewModel.friends,
-                        currentUserId: currentUserId,
                         onRoomCreated: { room in
                             appState.path.append(room)   // ✅ 방 생성 후 바로 ChatRoomView로 이동
                         }

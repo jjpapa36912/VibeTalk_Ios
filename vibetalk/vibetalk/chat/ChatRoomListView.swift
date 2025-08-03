@@ -3,12 +3,21 @@ import Foundation
 
 // 서버에서 가져오는 채팅방 목록 모델
 struct ChatRoomListItem: Identifiable, Codable, Hashable {
+
     let id: Int
     let roomName: String
-    let lastMessage: String?
-    let lastMessageTime: String?
-    let unreadCount: Int?
-    let participants: [ChatParticipant]
+    let createdBy: String?
+    let createdAt: String?
+    //    let id: Int
+//    let roomName: String
+//    let createdBy: String?
+//    let createdAt: String?
+//    
+//    // 미래 확장을 위해 추가 (현재 응답에 없으므로 자동 무시됨)
+//    let lastMessage: String?
+//    let lastMessageTime: String?
+//    let unreadCount: Int?
+//    let participants: [ChatParticipant]?
 }
 
 struct ChatParticipant: Codable, Hashable {
@@ -71,10 +80,13 @@ struct ChatRoomListView: View {
             .sheet(isPresented: $isShowingCreateRoom) {
                 CreateChatRoomView(
                     friends: viewModel.friends,
-                    currentUserId: currentUserId,
+//                    currentUserId: currentUserId,
                     onRoomCreated: { room in
                         isShowingCreateRoom = false
+                        viewModel.fetchChatRooms()       // ✅ 목록 즉시 갱신
+
                         appState.path.append(room)
+                        
                     }
                 )
                 .environmentObject(appState)
@@ -83,40 +95,34 @@ struct ChatRoomListView: View {
     }
     
     private func roomRow(_ room: ChatRoomListItem) -> some View {
-        HStack {
+        HStack(spacing: 12) {
+            // 기본 아이콘
+            Image(systemName: "person.3.fill")
+                .resizable()
+                .frame(width: 30, height: 30)
+                .foregroundColor(.blue)
+            
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(room.roomName)
-                        .font(.headline)
-                    Spacer()
-                    if let time = room.lastMessageTime {
-                        Text(formatTime(time))
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
+                Text(room.roomName)
+                    .font(.headline)
+                
+                if let createdBy = room.createdBy {
+                    Text("방장: \(createdBy)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
                 }
-                Text("참여자: \(room.participants.map { $0.name }.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                if let lastMessage = room.lastMessage {
-                    Text(lastMessage)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .foregroundColor(.secondary)
+                
+                if let createdAt = room.createdAt {
+                    Text("생성일: \(formatTime(createdAt))")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
                 }
             }
             Spacer()
-            if let unread = room.unreadCount, unread > 0 {
-                Text("\(unread)")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(6)
-                    .background(Color.red)
-                    .clipShape(Circle())
-            }
         }
         .padding(.vertical, 4)
     }
+
     
     private func formatTime(_ isoString: String) -> String {
         let formatter = ISO8601DateFormatter()

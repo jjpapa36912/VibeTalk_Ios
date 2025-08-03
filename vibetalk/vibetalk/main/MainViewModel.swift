@@ -12,6 +12,7 @@ final class MainViewModel: ObservableObject {
     @Published var friends: [FriendResponse] = []
     @Published var userProfile: UserProfile? = nil
     @Published var userId: Int = 0
+    @Published var chatRooms: [ChatRoomResponse] = []  // ✅ 채팅방 목록
 
     // ✅ 프로필 정보 가져오기
     func fetchUserProfile() {
@@ -100,7 +101,28 @@ final class MainViewModel: ObservableObject {
         }
         #endif
     }
+    func fetchChatRooms() {
+            guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+            var request = URLRequest(url: URL(string: "\(AppConfig.baseURL)/api/chat/rooms")!)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("❌ 채팅방 목록 불러오기 실패: \(error.localizedDescription)")
+                    return
+                }
+                guard let data = data else { return }
+                do {
+                    let decoded = try JSONDecoder().decode([ChatRoomResponse].self, from: data)
+                    DispatchQueue.main.async {
+                        self.chatRooms = decoded
+                    }
+                } catch {
+                    print("❌ 디코딩 오류: \(error.localizedDescription)")
+                }
+            }.resume()
+        }
     // ✅ 로그아웃 처리
     func logout() {
         UserDefaults.standard.removeObject(forKey: "jwtToken")
