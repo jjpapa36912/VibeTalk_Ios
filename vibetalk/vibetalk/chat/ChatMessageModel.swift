@@ -53,8 +53,8 @@ struct ChatBubbleView: View {
                     
                     Text(message.content)
                         .padding()
-                        .background(Color.gray.opacity(0.2))
-                        .foregroundColor(.black)
+                        .background(Color.gray.opacity(0.4))
+                        .foregroundColor(.white)
                         .cornerRadius(15)
                         .frame(maxWidth: 250, alignment: .leading)
                     
