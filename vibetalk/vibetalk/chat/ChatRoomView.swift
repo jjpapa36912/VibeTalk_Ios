@@ -32,7 +32,7 @@ struct ChatRoomView: View {
 
     var body: some View {
             VStack {
-                // ✅ 참가자 목록
+                // 참가자 목록
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(members) { member in
@@ -42,24 +42,37 @@ struct ChatRoomView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
                 }
-                
+
                 Divider()
-                
-                // ✅ 메시지 목록
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(stompManager.messages) { msg in
-                            ChatBubbleView(message: msg, isCurrentUser: msg.senderId == currentUserId)
+
+                // ✅ 메시지 목록 + 자동 스크롤
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(stompManager.messages) { msg in
+                                ChatBubbleView(
+                                    message: msg,
+                                    isCurrentUser: msg.senderId == currentUserId
+                                )
+                                .id(msg.id) // ✅ 각 메시지에 ID 부여
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .onChange(of: stompManager.messages.count) { _ in
+                        // ✅ 새 메시지 추가 시 마지막 메시지로 스크롤
+                        if let lastMessage = stompManager.messages.last {
+                            withAnimation {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
                         }
                     }
-                    .padding(.horizontal)
                 }
 
-                // 🎙 마이크 버튼
+                // 마이크 버튼
                 Button(action: {
                     if recorder.isRecording {
                         recorder.stopRecording()
-                        // 녹음 종료 후 FastAPI 서버로 전송
                         sendWithFastAPI()
                     } else {
                         recorder.startRecording()
@@ -76,19 +89,16 @@ struct ChatRoomView: View {
                     }
                 }
 
-                // ✅ 메시지 입력창
+                // 메시지 입력창
                 HStack {
                     TextField("메시지 입력", text: $inputMessage)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                    
                     Button("보내기") {
-                        // 텍스트만 보낼 경우
                         stompManager.sendMessage(inputMessage)
                         inputMessage = ""
                     }
                 }
                 .padding()
-
             }
             .navigationBarBackButtonHidden(true)
             .toolbar {
@@ -100,17 +110,96 @@ struct ChatRoomView: View {
             }
             .navigationTitle(room.roomName)
             .onAppear {
-                print("🟢 ChatRoomView onAppear → roomId: \(room.id)")
                 fetchChatRoomMembers(roomId: room.id)
                 stompManager.fetchChatHistory(roomId: room.id)
                 stompManager.connect(roomId: room.id, userId: currentUserId)
                 markRoomAsRead(roomId: room.id)
             }
-
             .onDisappear {
                 stompManager.disconnect()
             }
         }
+//    var body: some View {
+//            VStack {
+//                // ✅ 참가자 목록
+//                ScrollView(.horizontal, showsIndicators: false) {
+//                    HStack(spacing: 12) {
+//                        ForEach(members) { member in
+//                            memberProfileView(for: member)
+//                        }
+//                    }
+//                    .padding(.horizontal)
+//                    .padding(.top, 8)
+//                }
+//                
+//                Divider()
+//                
+//                // ✅ 메시지 목록
+//                ScrollView {
+//                    VStack(spacing: 10) {
+//                        ForEach(stompManager.messages) { msg in
+//                            ChatBubbleView(message: msg, isCurrentUser: msg.senderId == currentUserId)
+//                        }
+//                    }
+//                    .padding(.horizontal)
+//                }
+//
+//                // 🎙 마이크 버튼
+//                Button(action: {
+//                    if recorder.isRecording {
+//                        recorder.stopRecording()
+//                        // 녹음 종료 후 FastAPI 서버로 전송
+//                        sendWithFastAPI()
+//                    } else {
+//                        recorder.startRecording()
+//                    }
+//                }) {
+//                    Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+//                        .font(.system(size: 30))
+//                        .foregroundColor(recorder.isRecording ? .red : .blue)
+//                }
+//                .onReceive(recorder.$recognizedText) { text in
+//                    // 🎤 녹음 중일 때 실시간으로 텍스트 박스에 표시
+//                    if recorder.isRecording {
+//                        self.inputMessage = text
+//                    }
+//                }
+//
+//                // ✅ 메시지 입력창
+//                HStack {
+//                    TextField("메시지 입력", text: $inputMessage)
+//                        .textFieldStyle(RoundedBorderTextFieldStyle())
+//                    
+//                    Button("보내기") {
+//                        // 텍스트만 보낼 경우
+//                        stompManager.sendMessage(inputMessage)
+//                        inputMessage = ""
+//                    }
+//                }
+//                .padding()
+//
+//            }
+//            .navigationBarBackButtonHidden(true)
+//            .toolbar {
+//                ToolbarItem(placement: .navigationBarLeading) {
+//                    Button("채팅목록") {
+//                        appState.path.removeLast(appState.path.count)
+//                    }
+//                }
+//            }
+//            .navigationTitle(room.roomName)
+//            .onAppear {
+//                print("🟢 ChatRoomView onAppear → roomId: \(room.id)")
+//                fetchChatRoomMembers(roomId: room.id)
+//                stompManager.fetchChatHistory(roomId: room.id)
+//                stompManager.connect(roomId: room.id, userId: currentUserId)
+//                markRoomAsRead(roomId: room.id)
+//            }
+//
+//            .onDisappear {
+//                stompManager.disconnect()
+//            }
+//        }
 
         @ViewBuilder
         private func memberProfileView(for member: ChatMember) -> some View {
