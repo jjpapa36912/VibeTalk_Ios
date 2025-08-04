@@ -42,18 +42,24 @@ struct ChatRoomListView: View {
     var body: some View {
         NavigationStack(path: $appState.path) {
             VStack {
+//                List(viewModel.chatRooms) { room in
+//                    NavigationLink(value: room) {
+//                        roomRow(room)
+//                    }
+//                }
                 List(viewModel.chatRooms) { room in
-                    NavigationLink(value: room) {
+                    NavigationLink(value: ChatRoomResponse(id: room.id, roomName: room.roomName)) {
                         roomRow(room)
                     }
                 }
-                .navigationDestination(for: ChatRoomListItem.self) { room in
-                    ChatRoomView(
-                        room: ChatRoomResponse(id: room.id, roomName: room.roomName),
-                        currentUserId: currentUserId
-                    )
-                    .environmentObject(appState)
-                }
+
+//                .navigationDestination(for: ChatRoomListItem.self) { room in
+//                    ChatRoomView(
+//                        room: ChatRoomResponse(id: room.id, roomName: room.roomName),
+//                        currentUserId: currentUserId
+//                    )
+//                    .environmentObject(appState)
+//                }
                 .navigationDestination(for: ChatRoomResponse.self) { room in
                     ChatRoomView(
                         room: room,
@@ -85,7 +91,10 @@ struct ChatRoomListView: View {
                         isShowingCreateRoom = false
                         viewModel.fetchChatRooms()       // ✅ 목록 즉시 갱신
 
-                        appState.path.append(room)
+//                        appState.path.append(room)
+                        // ✅ 수정된 코드
+                        let response = ChatRoomResponse(id: room.id, roomName: room.roomName)
+                        appState.path.append(response)
                         
                     }
                 )
