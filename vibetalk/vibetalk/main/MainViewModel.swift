@@ -16,7 +16,7 @@ final class MainViewModel: ObservableObject {
 
     // ✅ 프로필 정보 가져오기
     func fetchUserProfile() {
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/me"),
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/me"),
               let token = UserDefaults.standard.string(forKey: "jwtToken") else {
             print("❌ URL 또는 JWT 토큰 없음")
             return
@@ -69,7 +69,7 @@ final class MainViewModel: ObservableObject {
         }
         #else
         ContactService.shared.fetchContacts { contacts in
-            guard let url = URL(string: "\(AppConfig.baseURL)/api/friends/sync") else { return }
+            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends/sync") else { return }
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -103,7 +103,7 @@ final class MainViewModel: ObservableObject {
     }
     func fetchChatRooms() {
             guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-            var request = URLRequest(url: URL(string: "\(AppConfig.baseURL)/api/chat/rooms")!)
+            var request = URLRequest(url: URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms")!)
             request.httpMethod = "GET"
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 

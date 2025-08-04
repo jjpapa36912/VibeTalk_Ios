@@ -84,7 +84,7 @@ struct ProfileHeaderView: View {
     var body: some View {
         HStack {
             if let imageUrl = userProfile?.profileImageUrl,
-               let url = URL(string: "\(AppConfig.baseURL)\(imageUrl)") {
+               let url = URL(string: "\(AppConfig.baseURLSpringBoot)\(imageUrl)") {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable()

@@ -62,7 +62,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             return
         }
         
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/device-token") else { return }
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/device-token") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(jwtToken)", forHTTPHeaderField: "Authorization")

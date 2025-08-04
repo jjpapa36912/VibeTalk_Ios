@@ -68,7 +68,7 @@ struct ProfileEditView: View {
         }
         
     private func fetchCurrentProfile() {
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/me"),
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/me"),
               let token = UserDefaults.standard.string(forKey: "jwtToken") else {
             print("❌ URL 또는 JWT 토큰 없음")
             return
@@ -106,7 +106,7 @@ struct ProfileEditView: View {
                     self.statusMessage = profile.statusMessage ?? ""
                     
                     if let imageUrl = profile.profileImageUrl,
-                       let url = URL(string: "\(AppConfig.baseURL)\(imageUrl)") {
+                       let url = URL(string: "\(AppConfig.baseURLSpringBoot)\(imageUrl)") {
                         print("🖼️ [Edit] 프로필 이미지 URL:", url)
                         
                         URLSession.shared.dataTask(with: url) { data, _, error in
@@ -134,7 +134,7 @@ struct ProfileEditView: View {
 
 
     private func saveProfile() {
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/me/update"),
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/me/update"),
               let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
         
         isSaving = true

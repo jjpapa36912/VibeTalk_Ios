@@ -80,7 +80,7 @@ class ChatService {
 //    }
     func createChatRoom(memberIds: [Int], roomName: String, completion: @escaping (Result<ChatRoomResponse, Error>) -> Void) {
         guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-        var request = URLRequest(url: URL(string: "\(AppConfig.baseURL)/api/chat/rooms")!)
+        var request = URLRequest(url: URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms")!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

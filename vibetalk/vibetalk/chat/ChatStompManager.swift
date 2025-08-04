@@ -12,7 +12,7 @@ class ChatStompManager: ObservableObject {
     func fetchChatHistory(roomId: Int) {
             // ✅ 서버에서 과거 메시지 가져오기
             guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-            guard let url = URL(string: "\(AppConfig.baseURL)/chatroom/\(roomId)/messages") else { return }
+            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/chatroom/\(roomId)/messages") else { return }
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"

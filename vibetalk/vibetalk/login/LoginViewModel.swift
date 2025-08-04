@@ -44,7 +44,7 @@ final class LoginViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     func login(completion: @escaping (Bool) -> Void) {
-        let serverURL = "\(AppConfig.baseURL)/api/auth/login"
+        let serverURL = "\(AppConfig.baseURLSpringBoot)/api/auth/login"
         guard let url = URL(string: serverURL) else { return }
         
         var request = URLRequest(url: url)
@@ -104,7 +104,7 @@ final class LoginViewModel: ObservableObject {
 
     // ✅ 회원가입 함수
     func register() {
-        let serverURL = "\(AppConfig.baseURL)/api/auth/register"
+        let serverURL = "\(AppConfig.baseURLSpringBoot)/api/auth/register"
         guard let url = URL(string: serverURL) else { return }
         
         var request = URLRequest(url: url)
@@ -146,7 +146,7 @@ final class LoginViewModel: ObservableObject {
     
     // ✅ 비밀번호 재설정 함수
     func resetPassword(email: String) {
-        let serverURL = "\(AppConfig.baseURL)/api/auth/reset-password"
+        let serverURL = "\(AppConfig.baseURLSpringBoot)/api/auth/reset-password"
         guard let url = URL(string: serverURL) else { return }
         
         var request = URLRequest(url: url)

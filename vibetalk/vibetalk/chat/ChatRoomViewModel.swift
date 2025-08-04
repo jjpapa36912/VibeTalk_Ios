@@ -17,7 +17,7 @@ final class ChatRoomViewModel: ObservableObject {
 
     private let token: String
     private let roomId: Int
-    private let baseURL = AppConfig.baseURL  // ✅ 실제 서버 URL로 변경
+    private let baseURL = AppConfig.baseURLSpringBoot  // ✅ 실제 서버 URL로 변경
     private let wsURL = AppConfig.webSocketURL   // ✅ WebSocket URL로 변경
 
     private var stompClient = StompClientLib()

@@ -10,7 +10,7 @@ class ChatRoomListViewModel: ObservableObject {
     func fetchChatRooms() {
         print("🚀 [ChatRoomListViewModel] fetchChatRooms() 시작")
         
-        guard let url = URL(string: "\(AppConfig.baseURL)/api/chat/rooms") else {
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms") else {
             print("❌ URL 생성 실패")
             return
         }
@@ -61,7 +61,7 @@ class ChatRoomListViewModel: ObservableObject {
     }
 
     func fetchFriends() {
-            guard let url = URL(string: "\(AppConfig.baseURL)/api/friends"),
+            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends"),
                   let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
             
             var request = URLRequest(url: url)

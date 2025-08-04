@@ -18,7 +18,7 @@ struct FriendTabView: View {
             // 프로필 헤더
             HStack {
                 if let profile = viewModel.userProfile,
-                   let url = URL(string: "\(AppConfig.baseURL)\(profile.profileImageUrl ?? "")") {
+                   let url = URL(string: "\(AppConfig.baseURLSpringBoot)\(profile.profileImageUrl ?? "")") {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image { image.resizable() }
                         else { Image(systemName: "person.circle").resizable() }

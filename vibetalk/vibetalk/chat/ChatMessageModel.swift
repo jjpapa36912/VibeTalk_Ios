@@ -34,7 +34,11 @@ struct ChatBubbleView: View {
             if isCurrentUser {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
+                    
+
                     Text(message.content)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
                         .padding()
                         .background(Color.blue.opacity(0.8))
                         .foregroundColor(.white)
@@ -52,6 +56,8 @@ struct ChatBubbleView: View {
                         .foregroundColor(.gray)
                     
                     Text(message.content)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
                         .padding()
                         .background(Color.gray.opacity(0.4))
                         .foregroundColor(.white)
