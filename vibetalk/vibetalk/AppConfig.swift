@@ -14,7 +14,8 @@ enum AppConfig {
     static let baseURLFastApi = "https://c0459a5ec842.ngrok-free.app"
 //    static let baseURL = "http://localhost:8080"
     #else
-    static let baseURL = "http://13.124.208.108:8080"
+    static let baseURLSpringBoot = "http://13.124.208.108:8080"
+    static let baseURLFastApi = "http://13.124.208.108:5001"
     #endif
 //    // 포트 제거된 URL 반환
 //    static var baseHost: String {
