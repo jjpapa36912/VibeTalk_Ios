@@ -8,6 +8,44 @@ class ChatStompManager: ObservableObject {
     
     private(set) var currentRoomId: Int = 0
     private(set) var currentUserId: Int = 0
+    
+    func fetchOlderMessages(roomId: Int, before: String, completion: @escaping ([ChatMessageModel]) -> Void) {
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken"),
+              let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/chatroom/\(roomId)/messages/old?before=\(before)&limit=50") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data = data,
+               let decoded = try? JSONDecoder().decode([ChatMessageModel].self, from: data) {
+                DispatchQueue.main.async {
+                    completion(decoded.reversed())
+                }
+            }
+        }.resume()
+    }
+
+    
+    
+    func fetchRecentMessages(roomId: Int, completion: @escaping ([ChatMessageModel]) -> Void) {
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken"),
+              let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/chatroom/\(roomId)/messages?limit=50") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data = data,
+               let decoded = try? JSONDecoder().decode([ChatMessageModel].self, from: data) {
+                DispatchQueue.main.async {
+                    completion(decoded.reversed()) // 최신순 → 올바른 순서로 변환
+                }
+            }
+        }.resume()
+    }
 
     func fetchChatHistory(roomId: Int) {
             // ✅ 서버에서 과거 메시지 가져오기

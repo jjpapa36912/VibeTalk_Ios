@@ -29,177 +29,211 @@ struct ChatRoomView: View {
     @StateObject private var recorder = SpeechRecorder()
     @State private var emotionResult: EmotionResult?
 
-
     var body: some View {
-            VStack {
-                // 참가자 목록
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(members) { member in
-                            memberProfileView(for: member)
+        VStack {
+            // ✅ 참가자 목록
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(members) { member in
+                        memberProfileView(for: member)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
+            Divider()
+
+            // ✅ 메시지 목록 + 무한 스크롤 + 자동 스크롤
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(stompManager.messages) { msg in
+                            ChatBubbleView(
+                                message: msg,
+                                isCurrentUser: msg.senderId == currentUserId
+                            )
+                            .id(msg.id)
                         }
+
+                        // 👇 맨 위에 도달 시 이전 메시지 자동 로딩
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                if let oldestMessage = stompManager.messages.first {
+                                    stompManager.fetchOlderMessages(
+                                        roomId: room.id,
+                                        before: oldestMessage.sentAt
+                                    ) { olderMessages in
+                                        stompManager.messages.insert(contentsOf: olderMessages, at: 0)
+                                    }
+                                }
+                            }
                     }
                     .padding(.horizontal)
-                    .padding(.top, 8)
                 }
-
-                Divider()
-
-                // ✅ 메시지 목록 + 자동 스크롤
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 10) {
-                            ForEach(stompManager.messages) { msg in
-                                ChatBubbleView(
-                                    message: msg,
-                                    isCurrentUser: msg.senderId == currentUserId
-                                )
-                                .id(msg.id) // ✅ 각 메시지에 ID 부여
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    .onChange(of: stompManager.messages.count) { _ in
-                        // ✅ 새 메시지 추가 시 마지막 메시지로 스크롤
-                        if let lastMessage = stompManager.messages.last {
-                            withAnimation {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                            }
+                .onChange(of: stompManager.messages.count) { _ in
+                    // ✅ 새 메시지 도착 시 마지막 메시지로 자동 스크롤
+                    if let lastMessage = stompManager.messages.last {
+                        withAnimation {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
                     }
                 }
+            }
 
-                // 마이크 버튼
-                Button(action: {
-                    if recorder.isRecording {
-                        recorder.stopRecording()
-                        sendWithFastAPI()
-                    } else {
-                        recorder.startRecording()
-                    }
-                }) {
-                    Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(recorder.isRecording ? .red : .blue)
+            // 🎙 마이크 버튼
+            Button(action: {
+                if recorder.isRecording {
+                    recorder.stopRecording()
+                    sendWithFastAPI()
+                } else {
+                    recorder.startRecording()
                 }
-                .onReceive(recorder.$recognizedText) { text in
-                    // 🎤 녹음 중일 때 실시간으로 텍스트 박스에 표시
-                    if recorder.isRecording {
-                        self.inputMessage = text
-                    }
+            }) {
+                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(recorder.isRecording ? .red : .blue)
+            }
+            .onReceive(recorder.$recognizedText) { text in
+                // 🎤 녹음 중일 때 실시간 텍스트 표시
+                if recorder.isRecording {
+                    self.inputMessage = text
                 }
+            }
 
-                // 메시지 입력창
-                HStack {
-                    TextField("메시지 입력", text: $inputMessage)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    Button("보내기") {
-                        stompManager.sendMessage(inputMessage)
-                        inputMessage = ""
-                    }
-                }
-                .padding()
-            }
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("채팅목록") {
-                        appState.path.removeLast(appState.path.count)
-                    }
+            // ✅ 메시지 입력창
+            HStack {
+                TextField("메시지 입력", text: $inputMessage)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                Button("보내기") {
+                    stompManager.sendMessage(inputMessage)
+                    inputMessage = ""
                 }
             }
-            .navigationTitle(room.roomName)
-            .onAppear {
-                fetchChatRoomMembers(roomId: room.id)
-                stompManager.fetchChatHistory(roomId: room.id)
-                stompManager.connect(roomId: room.id, userId: currentUserId)
-                markRoomAsRead(roomId: room.id)
-            }
-            .onDisappear {
-                stompManager.disconnect()
+            .padding()
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("채팅목록") {
+                    appState.path.removeLast(appState.path.count)
+                }
             }
         }
+        .navigationTitle(room.roomName)
+        .onAppear {
+            fetchChatRoomMembers(roomId: room.id)
+            
+            // ✅ Spring Boot에서 최신 50개 메시지
+            stompManager.fetchRecentMessages(roomId: room.id) { messages in
+                stompManager.messages = messages
+                
+                // ✅ FastAPI 서버로도 추가 호출 (예: 감정 분석)
+                sendWithFastAPI()
+            }
+            
+            stompManager.connect(roomId: room.id, userId: currentUserId)
+            markRoomAsRead(roomId: room.id)
+        }
+
+        .onDisappear {
+            stompManager.disconnect()
+        }
+    }
+
 //    var body: some View {
-//            VStack {
-//                // ✅ 참가자 목록
-//                ScrollView(.horizontal, showsIndicators: false) {
-//                    HStack(spacing: 12) {
-//                        ForEach(members) { member in
-//                            memberProfileView(for: member)
+//                VStack {
+//                    // 참가자 목록
+//                    ScrollView(.horizontal, showsIndicators: false) {
+//                        HStack(spacing: 12) {
+//                            ForEach(members) { member in
+//                                memberProfileView(for: member)
+//                            }
+//                        }
+//                        .padding(.horizontal)
+//                        .padding(.top, 8)
+//                    }
+//
+//                    Divider()
+//
+//                    // ✅ 메시지 목록 + 자동 스크롤
+//                    ScrollViewReader { proxy in
+//                        ScrollView {
+//                            VStack(spacing: 10) {
+//                                ForEach(stompManager.messages) { msg in
+//                                    ChatBubbleView(
+//                                        message: msg,
+//                                        isCurrentUser: msg.senderId == currentUserId
+//                                    )
+//                                    .id(msg.id) // ✅ 각 메시지에 ID 부여
+//                                }
+//                            }
+//                            .padding(.horizontal)
+//                        }
+//                        .onChange(of: stompManager.messages.count) { _ in
+//                            // ✅ 새 메시지 추가 시 마지막 메시지로 스크롤
+//                            if let lastMessage = stompManager.messages.last {
+//                                withAnimation {
+//                                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+//                                }
+//                            }
 //                        }
 //                    }
-//                    .padding(.horizontal)
-//                    .padding(.top, 8)
-//                }
-//                
-//                Divider()
-//                
-//                // ✅ 메시지 목록
-//                ScrollView {
-//                    VStack(spacing: 10) {
-//                        ForEach(stompManager.messages) { msg in
-//                            ChatBubbleView(message: msg, isCurrentUser: msg.senderId == currentUserId)
+//
+//                    // 마이크 버튼
+//                    Button(action: {
+//                        if recorder.isRecording {
+//                            recorder.stopRecording()
+//                            sendWithFastAPI()
+//                        } else {
+//                            recorder.startRecording()
+//                        }
+//                    }) {
+//                        Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+//                            .font(.system(size: 30))
+//                            .foregroundColor(recorder.isRecording ? .red : .blue)
+//                    }
+//                    .onReceive(recorder.$recognizedText) { text in
+//                        // 🎤 녹음 중일 때 실시간으로 텍스트 박스에 표시
+//                        if recorder.isRecording {
+//                            self.inputMessage = text
 //                        }
 //                    }
-//                    .padding(.horizontal)
-//                }
 //
-//                // 🎙 마이크 버튼
-//                Button(action: {
-//                    if recorder.isRecording {
-//                        recorder.stopRecording()
-//                        // 녹음 종료 후 FastAPI 서버로 전송
-//                        sendWithFastAPI()
-//                    } else {
-//                        recorder.startRecording()
+//                    // 메시지 입력창
+//                    HStack {
+//                        TextField("메시지 입력", text: $inputMessage)
+//                            .textFieldStyle(RoundedBorderTextFieldStyle())
+//                        Button("보내기") {
+//                            stompManager.sendMessage(inputMessage)
+//                            inputMessage = ""
+//                        }
 //                    }
-//                }) {
-//                    Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-//                        .font(.system(size: 30))
-//                        .foregroundColor(recorder.isRecording ? .red : .blue)
+//                    .padding()
 //                }
-//                .onReceive(recorder.$recognizedText) { text in
-//                    // 🎤 녹음 중일 때 실시간으로 텍스트 박스에 표시
-//                    if recorder.isRecording {
-//                        self.inputMessage = text
+//                .navigationBarBackButtonHidden(true)
+//                .toolbar {
+//                    ToolbarItem(placement: .navigationBarLeading) {
+//                        Button("채팅목록") {
+//                            appState.path.removeLast(appState.path.count)
+//                        }
 //                    }
 //                }
-//
-//                // ✅ 메시지 입력창
-//                HStack {
-//                    TextField("메시지 입력", text: $inputMessage)
-//                        .textFieldStyle(RoundedBorderTextFieldStyle())
-//                    
-//                    Button("보내기") {
-//                        // 텍스트만 보낼 경우
-//                        stompManager.sendMessage(inputMessage)
-//                        inputMessage = ""
+//                .navigationTitle(room.roomName)
+//                .onAppear {
+//                    fetchChatRoomMembers(roomId: room.id)
+//                    stompManager.fetchRecentMessages(roomId: room.id) { messages in
+//                        stompManager.messages = messages
 //                    }
+//                    stompManager.connect(roomId: room.id, userId: currentUserId)
+//                    markRoomAsRead(roomId: room.id)
 //                }
-//                .padding()
 //
-//            }
-//            .navigationBarBackButtonHidden(true)
-//            .toolbar {
-//                ToolbarItem(placement: .navigationBarLeading) {
-//                    Button("채팅목록") {
-//                        appState.path.removeLast(appState.path.count)
-//                    }
+//                .onDisappear {
+//                    stompManager.disconnect()
 //                }
 //            }
-//            .navigationTitle(room.roomName)
-//            .onAppear {
-//                print("🟢 ChatRoomView onAppear → roomId: \(room.id)")
-//                fetchChatRoomMembers(roomId: room.id)
-//                stompManager.fetchChatHistory(roomId: room.id)
-//                stompManager.connect(roomId: room.id, userId: currentUserId)
-//                markRoomAsRead(roomId: room.id)
-//            }
-//
-//            .onDisappear {
-//                stompManager.disconnect()
-//            }
-//        }
 
         @ViewBuilder
         private func memberProfileView(for member: ChatMember) -> some View {
