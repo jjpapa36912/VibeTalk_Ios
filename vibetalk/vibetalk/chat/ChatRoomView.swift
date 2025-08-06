@@ -95,7 +95,18 @@ struct ChatRoomView: View {
                 TextField("메시지 입력", text: $inputMessage)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                 Button("보내기") {
-                    stompSendTextMessage()
+                    let newMessage = EmotionResult(
+                           client_text: inputMessage,
+                           pitch: 0,
+                           volume: 0,
+                           emotion: "neutral",
+                           confidence: 0.5,
+                           source: "manual"
+                       )
+                       
+                       messages.append(newMessage) // ✅ 바로 UI에 반영됨
+                       stompSendTextMessage()
+                       inputMessage = "" // ✅ 입력창 초기화
 //                    messages.append($inputMessage)
                 }
             }
