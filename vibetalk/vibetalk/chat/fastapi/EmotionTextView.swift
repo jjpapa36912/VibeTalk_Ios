@@ -21,7 +21,7 @@ struct EmotionTextView: View {
         
         VStack(spacing: 10) {
             // Whisper 기반 텍스트 + 이모지
-            Text("\(style.emoji) \(result.whisper_text)")
+            Text("\(style.emoji) \(result.client_text)")
                 .font(.system(size: style.fontSize, weight: .bold))
                 .foregroundColor(style.color)
                 .multilineTextAlignment(.center)
@@ -48,12 +48,14 @@ struct EmotionStyle {
 }
 struct EmotionResult: Codable {
     let client_text: String
-    let whisper_text: String
     let pitch: Double
     let volume: Double
     let emotion: String
     let confidence: Double
+    let hubert_emotion: String
+    let hubert_confidence: Double
 }
+
 
 let emotionStyles: [String: EmotionStyle] = [
     "joy": EmotionStyle(emoji: "😄", color: .yellow, fontSize: 28),
