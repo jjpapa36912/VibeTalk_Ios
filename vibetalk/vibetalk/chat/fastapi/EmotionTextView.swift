@@ -46,15 +46,19 @@ struct EmotionStyle {
     let color: Color
     let fontSize: CGFloat
 }
-struct EmotionResult: Codable {
+struct EmotionResult: Codable, Identifiable, Equatable {
+    let id = UUID()
     let client_text: String
     let pitch: Double
     let volume: Double
     let emotion: String
     let confidence: Double
-    let hubert_emotion: String
-    let hubert_confidence: Double
+    let source: String
 }
+
+
+
+
 
 
 let emotionStyles: [String: EmotionStyle] = [
