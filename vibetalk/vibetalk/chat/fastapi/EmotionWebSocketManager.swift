@@ -34,13 +34,19 @@ class EmotionWebSocketManager: ObservableObject {
         webSocketTask?.receive { [weak self] result in
             switch result {
             case .success(let message):
-                if case .string(let text) = message,
-                   let data = text.data(using: .utf8),
-                   let decoded = try? JSONDecoder().decode(EmotionResult.self, from: data) {
-                    DispatchQueue.main.async {
-                        self?.latestEmotionResult = decoded
+                if case .string(let text) = message {
+                    print("🌐 WebSocket 수신: \(text)")  // ✅ 디버그 로그 추가
+                    if let data = text.data(using: .utf8),
+                       let decoded = try? JSONDecoder().decode(EmotionResult.self, from: data) {
+                        DispatchQueue.main.async {
+                            print("✅ 디코딩 성공 → EmotionResult: \(decoded.client_text) (\(decoded.emotion))")
+                            self?.latestEmotionResult = decoded
+                        }
+                    } else {
+                        print("❌ 디코딩 실패: \(text)")
                     }
                 }
+
             case .failure(let error):
                 print("WebSocket Error:", error)
             }

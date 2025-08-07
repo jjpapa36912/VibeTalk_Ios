@@ -50,17 +50,46 @@ struct EmotionStyle {
 
 
 }
+//struct EmotionResult: Identifiable, Codable {
+//    let id: Int  // ✅ 이 필드를 추가
+//    let client_text: String
+//    let pitch: Float
+//    let volume: Float
+//    let emotion: String
+//    let confidence: Float
+//    let source: String
+//    let fontName: String?
+//    
+//    var font: Font?
+//
+//    private enum CodingKeys: String, CodingKey {
+//        case id, client_text, pitch, volume, emotion, confidence, source, fontName
+//        // font는 Codable에서 제외됨
+//    }
+//}
 struct EmotionResult: Codable, Identifiable, Equatable {
-    let id = UUID()
+    var id: Int = UUID().hashValue
+    
     let client_text: String
-    let pitch: Double
-    let volume: Double
+    let pitch: Float
+    let volume: Float
     let emotion: String
-    let confidence: Double
+    let confidence: Float
     let source: String
-    let fontName: String? // ✅ 추가
+    let fontName: String?
+    let font: Font? = nil
 
+    enum CodingKeys: String, CodingKey {
+        case client_text, pitch, volume, emotion, confidence, source, fontName
+    }
+
+    static func == (lhs: EmotionResult, rhs: EmotionResult) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
+
+
+
 
 
 

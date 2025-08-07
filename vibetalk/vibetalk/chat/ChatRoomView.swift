@@ -13,11 +13,20 @@ struct ChatMember: Codable, Identifiable {
 }
 
 
+struct DecodableEmotionResult: Codable {
+    let client_text: String
+    let pitch: Float
+    let volume: Float
+    let emotion: String
+    let confidence: Float
+    let source: String
+}
 
+struct AnalyzeResponse: Codable {
+    let status: String
+    let hubert_emotion: String?
+}
 
-
-import SwiftUI
-import SwiftUI
 
 struct ChatRoomView: View {
     @EnvironmentObject var appState: AppState
@@ -55,7 +64,9 @@ struct ChatRoomView: View {
             .navigationTitle(room.roomName)
             .onAppear(perform: onAppearActions)
             .onDisappear(perform: onDisappearActions)
-            .onChange(of: wsManager.latestEmotionResult?.id) { _ in handleIncomingEmotionResult() }
+            .onReceive(wsManager.$latestEmotionResult.compactMap { $0 }) { newResult in
+                handleIncomingEmotionResult(with: newResult)
+            }
         }
 
         private var memberScrollView: some View {
@@ -119,6 +130,8 @@ struct ChatRoomView: View {
 
                 Button("보내기") {
                     let newMessage = EmotionResult(
+                        id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
+
                         client_text: inputMessage,
                         pitch: 0,
                         volume: 0,
@@ -142,6 +155,7 @@ struct ChatRoomView: View {
         let text = msg.source == "openai"
             ? "\(style.emoji) \(msg.client_text)"
             : msg.client_text
+        
 
         Text(text)
             .font(style.font)  // 🎯 감정 기반 커스텀 폰트 적용
@@ -167,18 +181,28 @@ struct ChatRoomView: View {
 
             stompManager.fetchRecentMessages(roomId: room.id) { msgs in
                 DispatchQueue.main.async {
-                    self.messages = msgs.map {
-                        EmotionResult(
-                            client_text: $0.content,
+                    print("📥 초기 메시지 불러오기 완료: \(msgs.count)개")
+
+                    self.messages = msgs.compactMap { msg in
+                        let emotion = msg.emotion ?? "neutral"
+                        let fontName: String = msg.fontName ?? emotionStyles[emotion]?.fontName ?? "YOnepick-Regular"
+                        let fontSize: CGFloat = emotionStyles[emotion]?.fontSize ?? 22
+                        let font = Font.custom(fontName, size: fontSize)
+
+                        return EmotionResult(
+                            id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
+
+                            client_text: msg.content,
                             pitch: 0,
                             volume: 0,
-                            emotion: "neutral",
+                            emotion: emotion,
                             confidence: 0.5,
                             source: "hubert",
-                            fontName: nil
+                            fontName: fontName
                         )
                     }
                 }
+
             }
 
             stompManager.connect(roomId: room.id, userId: currentUserId)
@@ -191,180 +215,45 @@ struct ChatRoomView: View {
             wsManager.disconnect()
         }
 
-        private func handleIncomingEmotionResult() {
-            guard let newResult = wsManager.latestEmotionResult else { return }
+    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
+        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
 
-            if let index = messages.firstIndex(where: { $0.client_text == newResult.client_text }) {
-                messages[index] = newResult
-            } else {
-                messages.append(newResult)
-            }
-
-            if newResult.source == "openai" {
-                let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
-                let finalMessage = "\(style.emoji) \(newResult.client_text)"
-                stompManager.sendMessage(finalMessage)
-            }
-
-            self.inputMessage = ""
+        if let index = messages.firstIndex(where: { $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines) == newResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines) }) {
+            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
+            messages[index] = newResult
+        } else {
+            print("➕ 새 메시지 추가")
+            messages.append(newResult)
         }
 
-//    var body: some View {
-//        VStack {
-//            // 참가자 목록
-//            ScrollView(.horizontal, showsIndicators: false) {
-//                HStack(spacing: 12) {
-//                    ForEach(members) { member in
-//                        memberProfileView(for: member)
-//                    }
-//                }
-//                .padding(.horizontal)
-//                .padding(.top, 8)
-//            }
-//
-//            Divider()
-//
-//            // 메시지 목록
-//            ScrollViewReader { proxy in
-//                ScrollView {
-//                    LazyVStack(spacing: 10) {
-//                        ForEach(messages) { msg in
-//                            let style = emotionStyles[msg.emotion] ?? emotionStyles["neutral"]!
-//
-//                            Text(msg.source == "openai"
-//                                 ? "\(emotionStyles[msg.emotion]?.emoji ?? "🙂") \(msg.client_text)"
-//                                 : msg.client_text)
-//                                .padding()
-//                                .font(style.font)
-//                                .background(msg.source == "hubert" ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
-//                                .cornerRadius(8)
-//                                .id(msg.id)
-//                        }
-//                    }
-//                    .padding(.horizontal)
-//                }
-//                .onChange(of: messages.count) { _ in
-//                    if let lastMessage = messages.last {
-//                        withAnimation {
-//                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-//                        }
-//                    }
-//                }
-//            }
-//
-//            // 마이크 버튼
-//            Button(action: {
-//                if recorder.isRecording {
-//                    recorder.stopRecording()
-//                    
-//                    sendWithFastAPI()
-//                } else {
-//                    recorder.startRecording()
-//                }
-//            }) {
-//                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-//                    .font(.system(size: 30))
-//                    .foregroundColor(recorder.isRecording ? .red : .blue)
-//            }
-//            .onReceive(recorder.$recognizedText) { text in
-//                if recorder.isRecording {
-//                    self.inputMessage = text
-//                }
-//            }
-//
-//            // 메시지 입력창
-//            HStack {
-//                TextField("메시지 입력", text: $inputMessage)
-//                    .textFieldStyle(RoundedBorderTextFieldStyle())
-//                    .focused($isInputFocused) // 🔑 포커스 연결
-//
-//                Button("보내기") {
-//                    let newMessage = EmotionResult(
-//                           client_text: inputMessage,
-//                           pitch: 0,
-//                           volume: 0,
-//                           emotion: "neutral",
-//                           confidence: 0.5,
-//                           source: "manual"
-//                       )
-//                       
-//                       messages.append(newMessage) // ✅ 바로 UI에 반영됨
-//                       stompSendTextMessage()
-//                       inputMessage = "" // ✅ 입력창 초기화
-//                    isInputFocused = false  // ✅ 키보드 내리기
-//
-////                    messages.append($inputMessage)
-//                }
-//            }
-//            .padding()
-//        }
-//        .onTapGesture {
-//                    isInputFocused = false  // ✅ 바깥 탭 시 키보드 숨기기
-//                }
-//        .navigationBarBackButtonHidden(true)
-//        .toolbar {
-//            ToolbarItem(placement: .navigationBarLeading) {
-//                Button("채팅목록") {
-//                    appState.path.removeLast(appState.path.count)
-//                }
-//            }
-//        }
-//        .navigationTitle(room.roomName)
-//        .onAppear {
-//            fetchChatRoomMembers(roomId: room.id)
-//
-//            stompManager.fetchRecentMessages(roomId: room.id) { msgs in
-//                DispatchQueue.main.async {
-//                    self.messages = msgs.map {
-//                        EmotionResult(
-//                            client_text: $0.content,
-//                            pitch: 0,
-//                            volume: 0,
-//                            emotion: "neutral",
-//                            confidence: 0.5,
-//                            source: "hubert"
-//                        )
-//                    }
-//                }
-//            }
-//            
-//            stompManager.connect(roomId: room.id, userId: currentUserId)
-//            markRoomAsRead(roomId: room.id)
-//            wsManager.connect()
-//        }
-//        .onDisappear {
-//            stompManager.disconnect()
-//            wsManager.disconnect()
-//        }
-//        // OpenAI 결과로 기존 Hubert 메시지 업데이트
-//        .onChange(of: wsManager.latestEmotionResult?.id) { _ in
-//            guard let newResult = wsManager.latestEmotionResult else { return }
-//            if let index = messages.firstIndex(where: { $0.client_text == newResult.client_text }) {
-//                messages[index] = newResult
-//            } else {
-//                messages.append(newResult)
-//            }
-//            
-//            // ✅ OpenAI 최종 결과일 때만 STOMP 전송 → DB 저장
-//            if newResult.source == "openai" {
-//                let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
-//                let pitchInfo = "Pitch: \(Int(newResult.pitch)) Hz | Volume: \(String(format: "%.2f", newResult.volume))"
-//                let finalMessage = "\(style.emoji) \(newResult.client_text)"//\n\(pitchInfo)"
-//                stompManager.sendMessage(finalMessage)
-//            }
-//            self.inputMessage = ""
-//
-//            
-//        }
-//                
-//    }
+        if newResult.source == "openai" {
+            let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+            let finalMessage = "\(style.emoji) \(newResult.client_text)"
+            print("🧠 OpenAI 응답 전송: \(finalMessage)")
+            stompManager.sendMessage(newResult)
+        }
+
+        self.inputMessage = ""
+    }
 
     private func stompSendTextMessage() {
         if !inputMessage.isEmpty {
-            stompManager.sendMessage(inputMessage)
+            let result = EmotionResult(
+                id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
+
+                client_text: inputMessage,
+                pitch: 0,
+                volume: 0,
+                emotion: "neutral",
+                confidence: 0.5,
+                source: "hubert",
+                fontName: emotionStyles["neutral"]?.fontName ?? "YOnepick-Regular"
+            )
+            stompManager.sendMessage(result)
             inputMessage = ""
         }
     }
+
 
     @ViewBuilder
     private func memberProfileView(for member: ChatMember) -> some View {
@@ -395,7 +284,18 @@ struct ChatRoomView: View {
 
     private func sendWithFastAPI() {
         guard let audioURL = recorder.recordedFileURL else {
-            stompManager.sendMessage(inputMessage)
+            print("⚠️ [FastAPI] 오디오 URL이 없음. 수동 텍스트 전송 시도")
+            let result = EmotionResult(
+                id: Int.random(in: 100000...999999),
+                client_text: inputMessage,
+                pitch: 0,
+                volume: 0,
+                emotion: "neutral",
+                confidence: 0.0,
+                source: "manual",
+                fontName: nil
+            )
+            stompManager.sendMessage(result)
             inputMessage = ""
             return
         }
@@ -408,17 +308,23 @@ struct ChatRoomView: View {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         var body = Data()
+
+        print("🧱 [FastAPI] Multipart Body 구성 시작")
+
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"text\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(inputMessage)\r\n".data(using: .utf8)!)
+        print("📦 text 추가 완료: \(inputMessage)")
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(currentUserId)\r\n".data(using: .utf8)!)
+        print("👤 user_id 추가 완료: \(currentUserId)")
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"room_id\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(room.id)\r\n".data(using: .utf8)!)
+        print("💬 room_id 추가 완료: \(room.id)")
 
         let audioData = try! Data(contentsOf: audioURL)
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -426,28 +332,54 @@ struct ChatRoomView: View {
         body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
         body.append(audioData)
         body.append("\r\n".data(using: .utf8)!)
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        print("🎧 audio 추가 완료. 크기: \(audioData.count) bytes")
 
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            if let data = data,
-               let hubertResult = try? JSONDecoder().decode(EmotionResult.self, from: data) {
+        print("📤 [FastAPI] 최종 Body 크기: \(body.count) bytes")
+        print("🚀 [FastAPI] 분석 요청 전송 시작 → \(url)")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("❌ [FastAPI] 요청 중 에러 발생: \(error.localizedDescription)")
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📡 [FastAPI] 응답 코드: \(httpResponse.statusCode)")
+            }
+
+            guard let data = data else {
+                print("❌ [FastAPI] 응답 데이터 없음")
+                return
+            }
+
+            // 1. 우선 status 기반 응답 처리
+            if let result = try? JSONDecoder().decode(AnalyzeResponse.self, from: data) {
+                if result.status == "processing" {
+                    print("✅ [FastAPI] 분석 요청 접수됨. 결과는 WebSocket으로 수신 예정.")
+                    return
+                }
+            }
+
+            // 2. 예외적으로 과거 EmotionResult 포맷이 오는 경우 처리
+            if let result = try? JSONDecoder().decode(EmotionResult.self, from: data) {
+                print("✅ [FastAPI] EmotionResult 응답 수신: \(result)")
                 DispatchQueue.main.async {
-                    // Hubert 메시지를 먼저 append
-                    self.messages.append(EmotionResult(
-                        client_text: hubertResult.client_text,
-                        pitch: hubertResult.pitch,
-                        volume: hubertResult.volume,
-                        emotion: hubertResult.emotion,
-                        confidence: hubertResult.confidence,
-                        source: "hubert",
-                        fontName: nil
-                    ))
+                    self.messages.append(result)
+                }
+            } else {
+                print("❌ [FastAPI] 응답 디코딩 실패")
+                if let raw = String(data: data, encoding: .utf8) {
+                    print("📦 [FastAPI] 응답 본문: \(raw)")
+                } else {
+                    print("📦 [FastAPI] 응답 본문 디코딩 불가 (encoding 문제)")
                 }
             }
         }.resume()
     }
+
 
     private func markRoomAsRead(roomId: Int) {
         guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/read"),

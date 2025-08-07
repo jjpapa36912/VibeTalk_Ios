@@ -7,6 +7,9 @@ struct ChatMessageModel: Codable, Identifiable {
     let senderName: String
     let content: String
     let sentAt: String
+    
+    let emotion: String?
+    let fontName: String?
 }
 
 class ChatWebSocketManager: ObservableObject {
@@ -29,26 +32,27 @@ class ChatWebSocketManager: ObservableObject {
         socket?.connect()
     }
     
-    func sendMessage(_ message: String) {
+    func sendMessage(_ result: EmotionResult) {
         let msg = ChatMessageModel(
-            id: Int.random(in: 100000...999999), // 로컬에서 임시 ID 생성
+            id: Int.random(in: 100000...999999),
             senderId: currentUserId,
             senderName: "나",
-            content: message,
-            sentAt: ISO8601DateFormatter().string(from: Date())
+            content: result.client_text,
+            sentAt: ISO8601DateFormatter().string(from: Date()),
+            emotion: result.emotion,
+            fontName: result.fontName
         )
 
-        // ✅ WebSocket으로 메시지 전송
         if let jsonData = try? JSONEncoder().encode(msg),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             socket?.write(string: jsonString)
         }
 
-        // ✅ 로컬에 즉시 추가
         DispatchQueue.main.async {
             self.messages.append(msg)
         }
     }
+
 
     
     func disconnect() {

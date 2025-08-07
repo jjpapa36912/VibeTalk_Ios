@@ -115,30 +115,38 @@ class ChatStompManager: ObservableObject {
 //            toDestination: "/app/chat.sendMessage/\(currentRoomId)"
 //        )
 //    }
-    func sendMessage(_ message: String) {
-            let json: [String: Any] = [
-                "chatRoomId": currentRoomId,
-                "senderId": currentUserId,
-                "content": message
-            ]
-            print("📤 [iOS] 메시지 전송: \(json)")
+    func sendMessage(_ result: EmotionResult) {
+        let resolvedFontName = result.fontName ?? emotionStyles[result.emotion]?.fontName ?? "YOnepick-Regular"
+        
+        let json: [String: Any] = [
+            "chatRoomId": currentRoomId,
+            "senderId": currentUserId,
+            "content": result.client_text,
+            "emotion": result.emotion,
+            "fontName": resolvedFontName
+        ]
+        
+        print("📤 [STOMP] 메시지 전송: \(json)")
 
-            socketClient.sendJSONForDict(
-                dict: json as NSDictionary,
-                toDestination: "/app/chat.sendMessage/\(currentRoomId)"
-            )
+        socketClient.sendJSONForDict(
+            dict: json as NSDictionary,
+            toDestination: "/app/chat.sendMessage/\(currentRoomId)"
+        )
 
-            // ✅ 로컬에서도 즉시 반영
-            DispatchQueue.main.async {
-                self.messages.append(ChatMessageModel(
-                    id: Int.random(in: 100000...999999),
-                    senderId: self.currentUserId,
-                    senderName: "나",
-                    content: message,
-                    sentAt: ISO8601DateFormatter().string(from: Date())
-                ))
-            }
+        DispatchQueue.main.async {
+            self.messages.append(ChatMessageModel(
+                id: Int.random(in: 100000...999999),
+                senderId: self.currentUserId,
+                senderName: "나",
+                content: result.client_text,
+                sentAt: ISO8601DateFormatter().string(from: Date()),
+                emotion: result.emotion,
+                fontName: resolvedFontName
+            ))
         }
+    }
+
+
 }
 
 extension ChatStompManager: StompClientLibDelegate {
