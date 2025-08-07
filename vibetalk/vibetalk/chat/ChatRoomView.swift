@@ -36,8 +36,29 @@ struct ChatRoomView: View {
 
 
     var body: some View {
-        VStack {
-            // 참가자 목록
+            VStack {
+                memberScrollView
+                Divider()
+                messageScrollView
+                micButton
+                inputSection
+            }
+            .onTapGesture { isInputFocused = false }
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("채팅목록") {
+                        appState.path.removeLast(appState.path.count)
+                    }
+                }
+            }
+            .navigationTitle(room.roomName)
+            .onAppear(perform: onAppearActions)
+            .onDisappear(perform: onDisappearActions)
+            .onChange(of: wsManager.latestEmotionResult?.id) { _ in handleIncomingEmotionResult() }
+        }
+
+        private var memberScrollView: some View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(members) { member in
@@ -47,21 +68,15 @@ struct ChatRoomView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
             }
+        }
 
-            Divider()
-
-            // 메시지 목록
+        private var messageScrollView: some View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 10) {
-                        ForEach(messages) { msg in
-                            Text(msg.source == "openai"
-                                 ? "\(emotionStyles[msg.emotion]?.emoji ?? "🙂") \(msg.client_text)"
-                                 : msg.client_text)
-                                .padding()
-                                .background(msg.source == "hubert" ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
-                                .cornerRadius(8)
-                                .id(msg.id)
+                        ForEach(messages, id: \ .id) { msg in
+                            emotionMessageView(for: msg)
+                                    .id(msg.id)
                         }
                     }
                     .padding(.horizontal)
@@ -74,12 +89,12 @@ struct ChatRoomView: View {
                     }
                 }
             }
+        }
 
-            // 마이크 버튼
+        private var micButton: some View {
             Button(action: {
                 if recorder.isRecording {
                     recorder.stopRecording()
-                    
                     sendWithFastAPI()
                 } else {
                     recorder.startRecording()
@@ -94,46 +109,60 @@ struct ChatRoomView: View {
                     self.inputMessage = text
                 }
             }
+        }
 
-            // 메시지 입력창
+        private var inputSection: some View {
             HStack {
                 TextField("메시지 입력", text: $inputMessage)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .focused($isInputFocused) // 🔑 포커스 연결
+                    .focused($isInputFocused)
 
                 Button("보내기") {
                     let newMessage = EmotionResult(
-                           client_text: inputMessage,
-                           pitch: 0,
-                           volume: 0,
-                           emotion: "neutral",
-                           confidence: 0.5,
-                           source: "manual"
-                       )
-                       
-                       messages.append(newMessage) // ✅ 바로 UI에 반영됨
-                       stompSendTextMessage()
-                       inputMessage = "" // ✅ 입력창 초기화
-                    isInputFocused = false  // ✅ 키보드 내리기
-
-//                    messages.append($inputMessage)
+                        client_text: inputMessage,
+                        pitch: 0,
+                        volume: 0,
+                        emotion: "neutral",
+                        confidence: 0.5,
+                        source: "manual",
+                        fontName: nil
+                    )
+                    messages.append(newMessage)
+                    stompSendTextMessage()
+                    inputMessage = ""
+                    isInputFocused = false
                 }
             }
             .padding()
         }
-        .onTapGesture {
-                    isInputFocused = false  // ✅ 바깥 탭 시 키보드 숨기기
-                }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("채팅목록") {
-                    appState.path.removeLast(appState.path.count)
-                }
-            }
-        }
-        .navigationTitle(room.roomName)
-        .onAppear {
+
+    @ViewBuilder
+    func emotionMessageView(for msg: EmotionResult) -> some View {
+        let style = emotionStyles[msg.emotion] ?? emotionStyles["neutral"]!
+        let text = msg.source == "openai"
+            ? "\(style.emoji) \(msg.client_text)"
+            : msg.client_text
+
+        Text(text)
+            .font(style.font)  // 🎯 감정 기반 커스텀 폰트 적용
+            .foregroundColor(style.color)
+            .padding()
+            .background(msg.source == "hubert" ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
+            .cornerRadius(8)
+    }
+
+
+    func fontFrom(fontName: String?, size: CGFloat = 22) -> Font {
+        guard let name = fontName else { return .body }
+        return Font.custom(name, size: size)
+    }
+//        private func stompSendTextMessage() {
+//            if !inputMessage.isEmpty {
+//                stompManager.sendMessage(inputMessage)
+//            }
+//        }
+
+        private func onAppearActions() {
             fetchChatRoomMembers(roomId: room.id)
 
             stompManager.fetchRecentMessages(roomId: room.id) { msgs in
@@ -145,42 +174,190 @@ struct ChatRoomView: View {
                             volume: 0,
                             emotion: "neutral",
                             confidence: 0.5,
-                            source: "hubert"
+                            source: "hubert",
+                            fontName: nil
                         )
                     }
                 }
             }
-            
+
             stompManager.connect(roomId: room.id, userId: currentUserId)
             markRoomAsRead(roomId: room.id)
             wsManager.connect()
         }
-        .onDisappear {
+
+        private func onDisappearActions() {
             stompManager.disconnect()
             wsManager.disconnect()
         }
-        // OpenAI 결과로 기존 Hubert 메시지 업데이트
-        .onChange(of: wsManager.latestEmotionResult?.id) { _ in
+
+        private func handleIncomingEmotionResult() {
             guard let newResult = wsManager.latestEmotionResult else { return }
+
             if let index = messages.firstIndex(where: { $0.client_text == newResult.client_text }) {
                 messages[index] = newResult
             } else {
                 messages.append(newResult)
             }
-            
-            // ✅ OpenAI 최종 결과일 때만 STOMP 전송 → DB 저장
+
             if newResult.source == "openai" {
                 let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
-                let pitchInfo = "Pitch: \(Int(newResult.pitch)) Hz | Volume: \(String(format: "%.2f", newResult.volume))"
-                let finalMessage = "\(style.emoji) \(newResult.client_text)"//\n\(pitchInfo)"
+                let finalMessage = "\(style.emoji) \(newResult.client_text)"
                 stompManager.sendMessage(finalMessage)
             }
-            self.inputMessage = ""
 
-            
+            self.inputMessage = ""
         }
-                
-    }
+
+//    var body: some View {
+//        VStack {
+//            // 참가자 목록
+//            ScrollView(.horizontal, showsIndicators: false) {
+//                HStack(spacing: 12) {
+//                    ForEach(members) { member in
+//                        memberProfileView(for: member)
+//                    }
+//                }
+//                .padding(.horizontal)
+//                .padding(.top, 8)
+//            }
+//
+//            Divider()
+//
+//            // 메시지 목록
+//            ScrollViewReader { proxy in
+//                ScrollView {
+//                    LazyVStack(spacing: 10) {
+//                        ForEach(messages) { msg in
+//                            let style = emotionStyles[msg.emotion] ?? emotionStyles["neutral"]!
+//
+//                            Text(msg.source == "openai"
+//                                 ? "\(emotionStyles[msg.emotion]?.emoji ?? "🙂") \(msg.client_text)"
+//                                 : msg.client_text)
+//                                .padding()
+//                                .font(style.font)
+//                                .background(msg.source == "hubert" ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
+//                                .cornerRadius(8)
+//                                .id(msg.id)
+//                        }
+//                    }
+//                    .padding(.horizontal)
+//                }
+//                .onChange(of: messages.count) { _ in
+//                    if let lastMessage = messages.last {
+//                        withAnimation {
+//                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+//                        }
+//                    }
+//                }
+//            }
+//
+//            // 마이크 버튼
+//            Button(action: {
+//                if recorder.isRecording {
+//                    recorder.stopRecording()
+//                    
+//                    sendWithFastAPI()
+//                } else {
+//                    recorder.startRecording()
+//                }
+//            }) {
+//                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+//                    .font(.system(size: 30))
+//                    .foregroundColor(recorder.isRecording ? .red : .blue)
+//            }
+//            .onReceive(recorder.$recognizedText) { text in
+//                if recorder.isRecording {
+//                    self.inputMessage = text
+//                }
+//            }
+//
+//            // 메시지 입력창
+//            HStack {
+//                TextField("메시지 입력", text: $inputMessage)
+//                    .textFieldStyle(RoundedBorderTextFieldStyle())
+//                    .focused($isInputFocused) // 🔑 포커스 연결
+//
+//                Button("보내기") {
+//                    let newMessage = EmotionResult(
+//                           client_text: inputMessage,
+//                           pitch: 0,
+//                           volume: 0,
+//                           emotion: "neutral",
+//                           confidence: 0.5,
+//                           source: "manual"
+//                       )
+//                       
+//                       messages.append(newMessage) // ✅ 바로 UI에 반영됨
+//                       stompSendTextMessage()
+//                       inputMessage = "" // ✅ 입력창 초기화
+//                    isInputFocused = false  // ✅ 키보드 내리기
+//
+////                    messages.append($inputMessage)
+//                }
+//            }
+//            .padding()
+//        }
+//        .onTapGesture {
+//                    isInputFocused = false  // ✅ 바깥 탭 시 키보드 숨기기
+//                }
+//        .navigationBarBackButtonHidden(true)
+//        .toolbar {
+//            ToolbarItem(placement: .navigationBarLeading) {
+//                Button("채팅목록") {
+//                    appState.path.removeLast(appState.path.count)
+//                }
+//            }
+//        }
+//        .navigationTitle(room.roomName)
+//        .onAppear {
+//            fetchChatRoomMembers(roomId: room.id)
+//
+//            stompManager.fetchRecentMessages(roomId: room.id) { msgs in
+//                DispatchQueue.main.async {
+//                    self.messages = msgs.map {
+//                        EmotionResult(
+//                            client_text: $0.content,
+//                            pitch: 0,
+//                            volume: 0,
+//                            emotion: "neutral",
+//                            confidence: 0.5,
+//                            source: "hubert"
+//                        )
+//                    }
+//                }
+//            }
+//            
+//            stompManager.connect(roomId: room.id, userId: currentUserId)
+//            markRoomAsRead(roomId: room.id)
+//            wsManager.connect()
+//        }
+//        .onDisappear {
+//            stompManager.disconnect()
+//            wsManager.disconnect()
+//        }
+//        // OpenAI 결과로 기존 Hubert 메시지 업데이트
+//        .onChange(of: wsManager.latestEmotionResult?.id) { _ in
+//            guard let newResult = wsManager.latestEmotionResult else { return }
+//            if let index = messages.firstIndex(where: { $0.client_text == newResult.client_text }) {
+//                messages[index] = newResult
+//            } else {
+//                messages.append(newResult)
+//            }
+//            
+//            // ✅ OpenAI 최종 결과일 때만 STOMP 전송 → DB 저장
+//            if newResult.source == "openai" {
+//                let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+//                let pitchInfo = "Pitch: \(Int(newResult.pitch)) Hz | Volume: \(String(format: "%.2f", newResult.volume))"
+//                let finalMessage = "\(style.emoji) \(newResult.client_text)"//\n\(pitchInfo)"
+//                stompManager.sendMessage(finalMessage)
+//            }
+//            self.inputMessage = ""
+//
+//            
+//        }
+//                
+//    }
 
     private func stompSendTextMessage() {
         if !inputMessage.isEmpty {
@@ -264,7 +441,8 @@ struct ChatRoomView: View {
                         volume: hubertResult.volume,
                         emotion: hubertResult.emotion,
                         confidence: hubertResult.confidence,
-                        source: "hubert"
+                        source: "hubert",
+                        fontName: nil
                     ))
                 }
             }

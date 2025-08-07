@@ -45,6 +45,10 @@ struct EmotionStyle {
     let emoji: String
     let color: Color
     let fontSize: CGFloat
+    let font: Font  // ✅ 여기를 fontName → font로 바꿉니다
+    let fontName: String  // ✅ 추가: DB 저장용 폰트 이름
+
+
 }
 struct EmotionResult: Codable, Identifiable, Equatable {
     let id = UUID()
@@ -54,6 +58,8 @@ struct EmotionResult: Codable, Identifiable, Equatable {
     let emotion: String
     let confidence: Double
     let source: String
+    let fontName: String? // ✅ 추가
+
 }
 
 
@@ -62,11 +68,12 @@ struct EmotionResult: Codable, Identifiable, Equatable {
 
 
 let emotionStyles: [String: EmotionStyle] = [
-    "joy": EmotionStyle(emoji: "😄", color: .yellow, fontSize: 28),
-    "sadness": EmotionStyle(emoji: "😢", color: .blue, fontSize: 26),
-    "anger": EmotionStyle(emoji: "😡", color: .red, fontSize: 30),
-    "fear": EmotionStyle(emoji: "😨", color: .purple, fontSize: 26),
-    "surprise": EmotionStyle(emoji: "😲", color: .orange, fontSize: 28),
-    "curiosity": EmotionStyle(emoji: "🤔", color: .green, fontSize: 24),
-    "neutral": EmotionStyle(emoji: "🙂", color: .gray, fontSize: 22)
+    "joy": EmotionStyle(emoji: "😄", color: .yellow, fontSize: 28,font: .custom("YOnepick-Regular", size:28), fontName: "YOnepick-Regular"),
+    "sadness": EmotionStyle(emoji: "😢", color: .blue, fontSize: 26, font: .custom("ChosunCentennial_ttf", size:26), fontName: "ChosunCentennial_ttf"),
+    "anger": EmotionStyle(emoji: "😡", color: .red, fontSize: 30, font: .custom("Giants-Regular", size:30), fontName: "Giants-Regular"),
+    "fear": EmotionStyle(emoji: "😨", color: .purple, fontSize: 26,font: .custom("YOnepick-Regular", size:26), fontName: "YOnepick-Regular"),
+    "surprise": EmotionStyle(emoji: "😲", color: .orange, fontSize: 28,  font: .custom("YOnepick-Regular", size:28), fontName: "YOnepick-Regular"),
+    "curiosity": EmotionStyle(emoji: "🤔", color: .green, fontSize: 24, font: .custom("YOnepick-Regular", size:24), fontName: "YOnepick-Regular"),
+    "neutral": EmotionStyle(emoji: "🙂", color: .gray, fontSize: 22, font: .custom("YOnepick-Regular", size:22), fontName: "YOnepick-Regular")
 ]
+
