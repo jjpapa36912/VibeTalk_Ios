@@ -78,6 +78,7 @@ class SpeechRecorder: NSObject, ObservableObject {
     }
 
     func stopRecording() {
+        recognizedText = "" 
         isRecording = false
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -86,6 +87,8 @@ class SpeechRecorder: NSObject, ObservableObject {
         recognitionTask = nil
         recognitionRequest = nil
         audioRecorder?.stop()
+         // ✅ 여기서 초기화
+
         print("⏹ 녹음 종료")
     }
 }

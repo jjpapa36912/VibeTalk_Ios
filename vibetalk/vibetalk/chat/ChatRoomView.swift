@@ -30,6 +30,10 @@ struct ChatRoomView: View {
     @StateObject private var recorder = SpeechRecorder()
     @StateObject private var wsManager = EmotionWebSocketManager()
     @State private var messages: [EmotionResult] = []
+    @FocusState private var isInputFocused: Bool  // 🔍 포커스 상태 추적
+    @State private var lastMessageId: UUID?  // 🔴 추가됨
+
+
 
     var body: some View {
         VStack {
@@ -75,6 +79,7 @@ struct ChatRoomView: View {
             Button(action: {
                 if recorder.isRecording {
                     recorder.stopRecording()
+                    
                     sendWithFastAPI()
                 } else {
                     recorder.startRecording()
@@ -94,6 +99,8 @@ struct ChatRoomView: View {
             HStack {
                 TextField("메시지 입력", text: $inputMessage)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .focused($isInputFocused) // 🔑 포커스 연결
+
                 Button("보내기") {
                     let newMessage = EmotionResult(
                            client_text: inputMessage,
@@ -107,11 +114,16 @@ struct ChatRoomView: View {
                        messages.append(newMessage) // ✅ 바로 UI에 반영됨
                        stompSendTextMessage()
                        inputMessage = "" // ✅ 입력창 초기화
+                    isInputFocused = false  // ✅ 키보드 내리기
+
 //                    messages.append($inputMessage)
                 }
             }
             .padding()
         }
+        .onTapGesture {
+                    isInputFocused = false  // ✅ 바깥 탭 시 키보드 숨기기
+                }
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -160,9 +172,11 @@ struct ChatRoomView: View {
             if newResult.source == "openai" {
                 let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
                 let pitchInfo = "Pitch: \(Int(newResult.pitch)) Hz | Volume: \(String(format: "%.2f", newResult.volume))"
-                let finalMessage = "\(style.emoji) \(newResult.client_text)\n\(pitchInfo)"
+                let finalMessage = "\(style.emoji) \(newResult.client_text)"//\n\(pitchInfo)"
                 stompManager.sendMessage(finalMessage)
             }
+            self.inputMessage = ""
+
             
         }
                 
