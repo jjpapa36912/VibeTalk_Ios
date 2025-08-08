@@ -129,22 +129,26 @@ struct ChatRoomView: View {
                     .focused($isInputFocused)
 
                 Button("보내기") {
-                    let newMessage = EmotionResult(
-                        id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
+                    let emotion = "neutral" // ✅ 직접 emotion 정의
 
+                    let newMessage = EmotionResult(
+                        id: Int.random(in: 100000...999999),
                         client_text: inputMessage,
                         pitch: 0,
                         volume: 0,
-                        emotion: "neutral",
+                        emotion: emotion,
                         confidence: 0.5,
                         source: "manual",
-                        fontName: nil
+                        fontName: nil,
+                        emoji: emotionStyles[emotion]?.emoji  // ✅ 이제 에러 안 남
                     )
+
                     messages.append(newMessage)
                     stompSendTextMessage()
                     inputMessage = ""
                     isInputFocused = false
                 }
+
             }
             .padding()
         }
@@ -152,18 +156,19 @@ struct ChatRoomView: View {
     @ViewBuilder
     func emotionMessageView(for msg: EmotionResult) -> some View {
         let style = emotionStyles[msg.emotion] ?? emotionStyles["neutral"]!
-        let text = msg.source == "openai"
-            ? "\(style.emoji) \(msg.client_text)"
-            : msg.client_text
         
+        // ✅ 서버에서 전달된 emoji 우선 사용
+        let emoji = msg.emoji ?? ""
+        let text = "\(emoji) \(msg.client_text)"
 
         Text(text)
-            .font(style.font)  // 🎯 감정 기반 커스텀 폰트 적용
+            .font(style.font)
             .foregroundColor(style.color)
             .padding()
             .background(msg.source == "hubert" ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
             .cornerRadius(8)
     }
+
 
 
     func fontFrom(fontName: String?, size: CGFloat = 22) -> Font {
@@ -190,20 +195,20 @@ struct ChatRoomView: View {
                         let font = Font.custom(fontName, size: fontSize)
 
                         return EmotionResult(
-                            id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
-
+                            id: Int.random(in: 100000...999999),
                             client_text: msg.content,
                             pitch: 0,
                             volume: 0,
                             emotion: emotion,
                             confidence: 0.5,
                             source: "hubert",
-                            fontName: fontName
+                            fontName: fontName,
+                            emoji: msg.emoji ?? emotionStyles[emotion]?.emoji  // ✅ 서버 응답 사용 우선
                         )
                     }
                 }
-
             }
+
 
             stompManager.connect(roomId: room.id, userId: currentUserId)
             markRoomAsRead(roomId: room.id)
@@ -218,37 +223,73 @@ struct ChatRoomView: View {
     private func handleIncomingEmotionResult(with newResult: EmotionResult) {
         print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
 
-        if let index = messages.firstIndex(where: { $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines) == newResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines) }) {
-            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
-            messages[index] = newResult
-        } else {
-            print("➕ 새 메시지 추가")
-            messages.append(newResult)
+        let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+
+        // ✅ emoji가 비어있으면 스타일에서 가져오기
+        var fixedResult = newResult
+        if fixedResult.emoji == nil {
+            fixedResult.emoji = style.emoji
         }
 
-        if newResult.source == "openai" {
-            let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
-            let finalMessage = "\(style.emoji) \(newResult.client_text)"
+        // ✅ 기존 메시지 덮어쓰기 or 새 메시지 추가
+        if let index = messages.firstIndex(where: {
+            $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
+            == fixedResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }) {
+            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
+            messages[index] = fixedResult
+        } else {
+            print("➕ 새 메시지 추가")
+            messages.append(fixedResult)
+        }
+
+        // ✅ OpenAI 메시지일 경우 전송
+        if fixedResult.source == "openai" {
+            let finalMessage = "\(fixedResult.emoji ?? "") \(fixedResult.client_text)"
             print("🧠 OpenAI 응답 전송: \(finalMessage)")
-            stompManager.sendMessage(newResult)
+            stompManager.sendMessage(fixedResult)
         }
 
         self.inputMessage = ""
     }
 
+//    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
+//        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
+//
+//        if let index = messages.firstIndex(where: { $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines) == newResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines) }) {
+//            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
+//            messages[index] = newResult
+//        } else {
+//            print("➕ 새 메시지 추가")
+//            messages.append(newResult)
+//        }
+//
+//        if newResult.source == "openai" {
+//            let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+//            let finalMessage = "\(style.emoji) \(newResult.client_text)"
+//            print("🧠 OpenAI 응답 전송: \(finalMessage)")
+//            stompManager.sendMessage(newResult)
+//        }
+//
+//        self.inputMessage = ""
+//    }
+
     private func stompSendTextMessage() {
         if !inputMessage.isEmpty {
-            let result = EmotionResult(
-                id: Int.random(in: 100000...999999), // ✅ 임의 ID 추가
+            let emotion = "neutral" // ✅ 먼저 정의
 
+            let result = EmotionResult(
+                id: Int.random(in: 100000...999999),
                 client_text: inputMessage,
                 pitch: 0,
                 volume: 0,
-                emotion: "neutral",
+                emotion: emotion,
                 confidence: 0.5,
                 source: "hubert",
-                fontName: emotionStyles["neutral"]?.fontName ?? "YOnepick-Regular"
+                fontName: emotionStyles[emotion]?.fontName ?? "YOnepick-Regular",
+                emoji: emotionStyles[emotion]?.emoji  // ✅ 이제 문제 없음
             )
+
             stompManager.sendMessage(result)
             inputMessage = ""
         }
@@ -285,6 +326,8 @@ struct ChatRoomView: View {
     private func sendWithFastAPI() {
         guard let audioURL = recorder.recordedFileURL else {
             print("⚠️ [FastAPI] 오디오 URL이 없음. 수동 텍스트 전송 시도")
+            let emotion = "neutral" // ✅ 먼저 emotion 정의
+
             let result = EmotionResult(
                 id: Int.random(in: 100000...999999),
                 client_text: inputMessage,
@@ -293,7 +336,8 @@ struct ChatRoomView: View {
                 emotion: "neutral",
                 confidence: 0.0,
                 source: "manual",
-                fontName: nil
+                fontName: nil,
+                emoji: emotionStyles[emotion]?.emoji // ✅ 여기 추가
             )
             stompManager.sendMessage(result)
             inputMessage = ""
@@ -325,6 +369,8 @@ struct ChatRoomView: View {
         body.append("Content-Disposition: form-data; name=\"room_id\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(room.id)\r\n".data(using: .utf8)!)
         print("💬 room_id 추가 완료: \(room.id)")
+        
+        
 
         let audioData = try! Data(contentsOf: audioURL)
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -366,10 +412,17 @@ struct ChatRoomView: View {
             // 2. 예외적으로 과거 EmotionResult 포맷이 오는 경우 처리
             if let result = try? JSONDecoder().decode(EmotionResult.self, from: data) {
                 print("✅ [FastAPI] EmotionResult 응답 수신: \(result)")
+
+                // 🧠 이모지 매핑
+                var enrichedResult = result
+                enrichedResult.emoji = emotionStyles[result.emotion]?.emoji ?? "🙂"
+
                 DispatchQueue.main.async {
-                    self.messages.append(result)
+                    self.messages.append(enrichedResult)
+                    self.stompManager.sendMessage(enrichedResult)
                 }
-            } else {
+            }
+                    else {
                 print("❌ [FastAPI] 응답 디코딩 실패")
                 if let raw = String(data: data, encoding: .utf8) {
                     print("📦 [FastAPI] 응답 본문: \(raw)")

@@ -10,8 +10,8 @@ import Foundation
 enum AppConfig {
     #if DEBUG
 //    static let baseURL = "http://172.29.107.196:8080"//https://4cffc47374ec.ngrok-free.app
-    static let baseURLSpringBoot = "https://5ee23e3ed36a.ngrok-free.app"
-    static let baseURLFastApi = "https://c03e314ff799.ngrok-free.app"
+    static let baseURLSpringBoot = "https://e977e9ba213f.ngrok-free.app"
+    static let baseURLFastApi = "https://292abe82845c.ngrok-free.app"
 //    static let baseURL = "http://localhost:8080"
     #else
     static let baseURLSpringBoot = "http://13.124.208.108:8080"
@@ -29,7 +29,7 @@ enum AppConfig {
     static var webSocketURL: String {
         #if DEBUG
 //        return "ws://172.30.1.73:8080/ws"
-        return "wss://5ee23e3ed36a.ngrok-free.app/ws"
+        return "wss://e977e9ba213f.ngrok-free.app/ws"
         #else
         return "ws://13.124.208.108:8080/ws"
         #endif

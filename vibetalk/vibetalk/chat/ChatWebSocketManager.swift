@@ -10,7 +10,9 @@ struct ChatMessageModel: Codable, Identifiable {
     
     let emotion: String?
     let fontName: String?
+    let emoji: String?  // ✅ 이모지 필드 추가
 }
+
 
 class ChatWebSocketManager: ObservableObject {
     var socket: WebSocket?
@@ -40,7 +42,8 @@ class ChatWebSocketManager: ObservableObject {
             content: result.client_text,
             sentAt: ISO8601DateFormatter().string(from: Date()),
             emotion: result.emotion,
-            fontName: result.fontName
+            fontName: result.fontName,
+            emoji: result.emoji  // ✅ 이 줄 추가
         )
 
         if let jsonData = try? JSONEncoder().encode(msg),
@@ -52,6 +55,7 @@ class ChatWebSocketManager: ObservableObject {
             self.messages.append(msg)
         }
     }
+
 
 
     

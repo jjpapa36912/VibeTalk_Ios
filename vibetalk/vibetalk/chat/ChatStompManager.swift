@@ -117,13 +117,15 @@ class ChatStompManager: ObservableObject {
 //    }
     func sendMessage(_ result: EmotionResult) {
         let resolvedFontName = result.fontName ?? emotionStyles[result.emotion]?.fontName ?? "YOnepick-Regular"
-        
+        let resolvedEmoji = result.emoji ?? emotionStyles[result.emotion]?.emoji ?? "🙂"
+
         let json: [String: Any] = [
             "chatRoomId": currentRoomId,
             "senderId": currentUserId,
             "content": result.client_text,
             "emotion": result.emotion,
-            "fontName": resolvedFontName
+            "fontName": resolvedFontName,
+            "emoji": resolvedEmoji  // ✅ 이모지 추가!
         ]
         
         print("📤 [STOMP] 메시지 전송: \(json)")
@@ -141,10 +143,12 @@ class ChatStompManager: ObservableObject {
                 content: result.client_text,
                 sentAt: ISO8601DateFormatter().string(from: Date()),
                 emotion: result.emotion,
-                fontName: resolvedFontName
+                fontName: resolvedFontName,
+                emoji: resolvedEmoji  // ✅ 메시지 목록에도 반영
             ))
         }
     }
+
 
 
 }

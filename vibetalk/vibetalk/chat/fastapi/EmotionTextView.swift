@@ -76,11 +76,12 @@ struct EmotionResult: Codable, Identifiable, Equatable {
     let emotion: String
     let confidence: Float
     let source: String
-    let fontName: String?
+    var fontName: String?   // ✅ 바뀔 수 있으므로 var로
+    var emoji: String?        // ✅ 추가
     let font: Font? = nil
 
     enum CodingKeys: String, CodingKey {
-        case client_text, pitch, volume, emotion, confidence, source, fontName
+        case client_text, pitch, volume, emotion, confidence, source, fontName, emoji  // ✅ 추가
     }
 
     static func == (lhs: EmotionResult, rhs: EmotionResult) -> Bool {
