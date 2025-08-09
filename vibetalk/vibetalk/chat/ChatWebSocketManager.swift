@@ -85,8 +85,14 @@ extension ChatMessageModel {
                 source: source ?? self.source
             )
         }
+    // ChatMessageModel.swift - 기존 init(from r:) 교체
     init(from r: ChatMessageResponse) {
-        self.id = String(r.id)
+        // ✅ clientMessageId가 있으면 그걸 id로 사용
+        if let cmid = r.clientMessageId, !cmid.isEmpty {
+            self.id = cmid
+        } else {
+            self.id = String(r.id)
+        }
         self.senderId = r.senderId
         self.senderName = r.senderName
         self.content = r.content
@@ -96,17 +102,12 @@ extension ChatMessageModel {
         self.emoji = r.emoji
         self.source = "server"
 
-        // 🔧 응급 보강(선택): 서버가 아직 보내지 않는 경우
-        if self.fontName == nil || self.emoji == nil {
-            let key = (r.emotion ?? "neutral").lowercased()
-            if self.fontName == nil {
-                self.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular"
-            }
-            if self.emoji == nil {
-                self.emoji = emotionStyles[key]?.emoji ?? "🙂"
-            }
-        }
+        // 보강
+        let key = (r.emotion ?? "neutral").lowercased()
+        if self.fontName == nil { self.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
+        if self.emoji == nil    { self.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
     }
+
 }
 
 
@@ -142,14 +143,17 @@ final class ChatWebSocketManager: ObservableObject {
     }
 
     /// 허버트/오픈AI 결과를 이용해 최종 "채팅 메시지"를 서버로 전송
+    // ChatWebSocketManager.sendMessage(_:)
     func sendMessage(_ result: EmotionResult) {
-        // 1) 서버가 기대하는 JSON 페이로드 구성 (서버 DTO에 맞추세요)
-        // 기존 STOMP에서 쓰던 포맷과 동일하게 맞춤
         let resolvedFontName = result.fontName ?? "YOnepick-Regular"
+
+        // ✅ 서버가 받는 페이로드에 clientMessageId + sentAt 포함
         let payload: [String: Any] = [
             "chatRoomId": currentRoomId,
             "senderId": currentUserId,
             "content": result.client_text,
+            "clientMessageId": result.id,     // 🔑 중요
+            "sentAt": result.sentAt,          // "2025-08-09T22:22:51Z" 등
             "emotion": result.emotion,
             "fontName": resolvedFontName,
             "emoji": result.emoji ?? "🙂"
@@ -162,13 +166,13 @@ final class ChatWebSocketManager: ObservableObject {
             print("❌ WebSocket payload 직렬화 실패")
         }
 
-        // 2) 로컬 즉시 반영용(에코 오기 전에 프리뷰)
+        // ✅ 프리뷰도 같은 id 사용 (result.id)
         let msg = ChatMessageModel(
-            id: UUID().uuidString, // 로컬 임시 id (서버 echo에서 교체/추가될 수 있음)
+            id: result.id,                    // 🔑 여기! UUID 새로 만들지 말고 result.id
             senderId: currentUserId,
             senderName: "나",
             content: result.client_text,
-            sentAt: ISO8601DateFormatter().string(from: Date()),
+            sentAt: result.sentAt,
             emotion: result.emotion,
             fontName: resolvedFontName,
             emoji: result.emoji,
@@ -176,9 +180,10 @@ final class ChatWebSocketManager: ObservableObject {
         )
 
         DispatchQueue.main.async {
-            self.messages.append(msg)
+            self.upsertIncoming(msg)          // 아래 3)에서 추가
         }
     }
+
 }
 
 // MARK: - Starscream Delegate
@@ -190,20 +195,19 @@ extension ChatWebSocketManager: WebSocketDelegate {
             print("✅ WebSocket 연결됨")
         case .disconnected(let reason, let code):
             print("❌ WebSocket 해제: \(reason), 코드: \(code)")
-        case .text(let text):
-            guard let data = text.data(using: .utf8) else { return }
-            do {
-                let decoded = try JSONDecoder().decode(ChatMessageModel.self, from: data)
-                let ready = enrichEmotionFields(decoded)     // ✅ 보강
+            // Starscream delegate
+            case .text(let text):
+                guard let data = text.data(using: .utf8) else { return }
+                do {
+                    var decoded = try JSONDecoder().decode(ChatMessageModel.self, from: data)
+                    decoded = enrichEmotionFields(decoded)
 
-                DispatchQueue.main.async {
-                    self.messages.append(decoded)
+                    
+                } catch {
+                    let preview = String(text.prefix(200))
+                    print("❌ 메시지 디코딩 실패: \(error)\nRAW preview: \(preview)")
                 }
-            } catch {
-                // 디코딩 실패 원인 확인
-                let preview = String(text.prefix(200))
-                print("❌ 메시지 디코딩 실패: \(error)\nRAW preview: \(preview)")
-            }
+
         case .binary(let data):
             print("ℹ️ WebSocket binary 수신(\(data.count) bytes) – 무시")
         case .error(let error):
@@ -219,4 +223,13 @@ extension ChatWebSocketManager: WebSocketDelegate {
         if mm.emoji == nil    { mm.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
         return mm
     }
+    // ChatWebSocketManager 내부
+    private func upsertIncoming(_ m: ChatMessageModel) {
+        if let i = messages.firstIndex(where: { $0.id == m.id }) {
+            messages[i] = m        // 같은 clientMessageId면 덮어쓰기
+        } else {
+            messages.append(m)
+        }
+    }
+
 }

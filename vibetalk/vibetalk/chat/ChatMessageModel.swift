@@ -16,6 +16,7 @@ import SwiftUI
 //}
 struct ChatMessageResponse: Codable, Identifiable {
     let id: Int
+    let clientMessageId: String?
     let senderId: Int
     let senderName: String
     let content: String

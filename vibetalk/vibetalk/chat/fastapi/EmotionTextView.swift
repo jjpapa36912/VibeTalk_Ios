@@ -54,7 +54,10 @@ struct EmotionStyle {
 
 
 struct EmotionResult: Codable, Identifiable, Equatable {
+    // 🔑 clientMessageId 로 사용 (UUID 문자열 권장)
     var id: String
+
+    // 서버/클라 양쪽에서 이름이 다를 수 있어 유연 디코딩 처리할 것
     let client_text: String
     let pitch: Float
     let volume: Float
@@ -63,15 +66,26 @@ struct EmotionResult: Codable, Identifiable, Equatable {
     let source: String
     var fontName: String?
     var emoji: String?
-    let senderId: Int?         // ✅ 추가
+
+    // 내/상대 구분
+    let senderId: Int?
     let senderName: String
     let sentAt: String
 
-    enum CodingKeys: String, CodingKey {
-        case id, client_text, pitch, volume, emotion, confidence, source, fontName, emoji, senderId, senderName, sentAt
+    // 서버 키가 다를 수 있어 보조 키까지 정의
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case client_text
+        case pitch, volume, emotion, confidence, source, fontName, emoji
+        case senderId, senderName, sentAt
+
+        // 보조 키들 (서버 DTO에 맞춰 유연 매핑)
+        case clientMessageId
+        case content
+        case messageId
     }
 
-    // 멤버와이즈 생성자, init(from:)에서도 senderId 디코딩
+    // 멤버와이즈 생성자
     init(
         id: String,
         client_text: String,
@@ -80,9 +94,9 @@ struct EmotionResult: Codable, Identifiable, Equatable {
         emotion: String,
         confidence: Float,
         source: String,
-        fontName: String?,
-        emoji: String?,
-        senderId: Int?,        // ✅ 추가
+        fontName: String? = nil,
+        emoji: String? = nil,
+        senderId: Int? = nil,
         senderName: String,
         sentAt: String
     ) {
@@ -100,24 +114,100 @@ struct EmotionResult: Codable, Identifiable, Equatable {
         self.sentAt = sentAt
     }
 
+    // 유연 디코딩: id/clientMessageId/messageId, content/client_text, senderId(Int/String) 모두 허용
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(String.self, forKey: .id)
-        self.client_text = try container.decode(String.self, forKey: .client_text)
-        self.pitch = try container.decode(Float.self, forKey: .pitch)
-        self.volume = try container.decode(Float.self, forKey: .volume)
-        self.emotion = try container.decode(String.self, forKey: .emotion)
-        self.confidence = try container.decode(Float.self, forKey: .confidence)
-        self.source = try container.decode(String.self, forKey: .source)
-        self.fontName = try container.decodeIfPresent(String.self, forKey: .fontName)
-        self.emoji = try container.decodeIfPresent(String.self, forKey: .emoji)
-        self.senderId = try container.decodeIfPresent(Int.self, forKey: .senderId)  // ✅ 추가
-        self.senderName = try container.decode(String.self, forKey: .senderName)
-        self.sentAt = try container.decode(String.self, forKey: .sentAt)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // id: String | Int, 키: id | clientMessageId | messageId
+        if let s = try c.decodeIfPresent(String.self, forKey: .id) {
+            self.id = s
+        } else if let s = try c.decodeIfPresent(String.self, forKey: .clientMessageId) {
+            self.id = s
+        } else if let s = try c.decodeIfPresent(String.self, forKey: .messageId) {
+            self.id = s
+        } else if let n = try c.decodeIfPresent(Int.self, forKey: .id) {
+            self.id = String(n)
+        } else if let n = try c.decodeIfPresent(Int.self, forKey: .clientMessageId) {
+            self.id = String(n)
+        } else if let n = try c.decodeIfPresent(Int.self, forKey: .messageId) {
+            self.id = String(n)
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.id, .init(codingPath: decoder.codingPath, debugDescription: "Missing id/clientMessageId"))
+        }
+
+        // content(client_text) 양쪽 허용
+        if let text = try c.decodeIfPresent(String.self, forKey: .client_text) {
+            self.client_text = text
+        } else if let text = try c.decodeIfPresent(String.self, forKey: .content) {
+            self.client_text = text
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.client_text, .init(codingPath: decoder.codingPath, debugDescription: "Missing content/client_text"))
+        }
+
+        self.pitch = try c.decodeIfPresent(Float.self, forKey: .pitch) ?? 0
+        self.volume = try c.decodeIfPresent(Float.self, forKey: .volume) ?? 0
+        self.emotion = try c.decodeIfPresent(String.self, forKey: .emotion) ?? "neutral"
+        self.confidence = try c.decodeIfPresent(Float.self, forKey: .confidence) ?? 0
+        self.source = try c.decodeIfPresent(String.self, forKey: .source) ?? "server"
+        self.fontName = try c.decodeIfPresent(String.self, forKey: .fontName)
+        self.emoji = try c.decodeIfPresent(String.self, forKey: .emoji)
+
+        // senderId: Int | String 모두 허용
+        if let sid = try c.decodeIfPresent(Int.self, forKey: .senderId) {
+            self.senderId = sid
+        } else if let sidStr = try c.decodeIfPresent(String.self, forKey: .senderId), let sid = Int(sidStr) {
+            self.senderId = sid
+        } else {
+            self.senderId = nil
+        }
+
+        self.senderName = try c.decodeIfPresent(String.self, forKey: .senderName) ?? ""
+        self.sentAt = try c.decodeIfPresent(String.self, forKey: .sentAt) ?? ""
+    }
+
+    // 명시 인코딩: 서버에 보낼 때 clientMessageId/ content 로 통일 전송
+    func encode(to encoder: Encoder) throws {
+        var e = encoder.container(keyedBy: CodingKeys.self)
+        try e.encode(id, forKey: .clientMessageId) // 🔑 서버가 clientMessageId 기대
+        try e.encode(client_text, forKey: .content) // 🔑 서버가 content 기대 (필요시 .client_text로 바꿔도 됨)
+        try e.encode(pitch, forKey: .pitch)
+        try e.encode(volume, forKey: .volume)
+        try e.encode(emotion, forKey: .emotion)
+        try e.encode(confidence, forKey: .confidence)
+        try e.encode(source, forKey: .source)
+        try e.encodeIfPresent(fontName, forKey: .fontName)
+        try e.encodeIfPresent(emoji, forKey: .emoji)
+
+        if let senderId = senderId {
+            try e.encode(senderId, forKey: .senderId)
+        }
+        try e.encode(senderName, forKey: .senderName)
+        try e.encode(sentAt, forKey: .sentAt)
     }
 
     static func == (lhs: EmotionResult, rhs: EmotionResult) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+// ✨ 편의 생성자: 로컬 임시 버블(draft) 만들 때 사용
+extension EmotionResult {
+    static func draft(
+        text: String,
+        currentUserId: Int,
+        currentUserName: String? = nil   // ← 옵션으로 변경
+    ) -> EmotionResult {
+        EmotionResult(
+            id: UUID().uuidString,
+            client_text: text,
+            pitch: 0, volume: 0,
+            emotion: "neutral", confidence: 0,
+            source: "manual",
+            fontName: nil, emoji: "🙂",
+            senderId: currentUserId,
+            senderName: currentUserName ?? "Me",   // ← 없으면 "Me"
+            sentAt: ISO8601DateFormatter().string(from: Date())
+        )
     }
 }
 

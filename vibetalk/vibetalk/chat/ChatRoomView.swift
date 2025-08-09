@@ -41,7 +41,7 @@ struct ChatRoomView: View {
     @State private var members: [ChatMember] = []
     @StateObject private var recorder = SpeechRecorder()
     @StateObject private var wsManager = EmotionWebSocketManager()
-//    @State private var messages: [EmotionResult] = []
+    @State private var messages: [EmotionResult] = []
     @FocusState private var isInputFocused: Bool  // 🔍 포커스 상태 추적
     @State private var lastMessageId: UUID?  // 🔴 추가됨
     @State private var pendingMessageId: String?
@@ -80,26 +80,14 @@ struct ChatRoomView: View {
             }
             // ③ STOMP 서버 메시지/이력 → 화면 소스(uiMessages)에 머지
         
-            .onReceive(stompManager.$messages) { serverMsgs in
-                var out = uiMessages
-                for s in serverMsgs.map(enrichEmotionFields) {
-                    if let idx = out.firstIndex(where: { $0.id == s.id }) {
-                        // 같은 id면 그대로 덮어쓰기
-                        out[idx] = s
-                    } else if let idxByMine = out.firstIndex(where: {
-                        // 내 임시 버블과 동일 텍스트(또는 pendingMessageId 매칭)인 경우 서버 id로 치환
-                        $0.senderId == currentUserId &&
-                        $0.content.trimmingCharacters(in: .whitespacesAndNewlines) ==
-                        s.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }) {
-                        out[idxByMine] = s   // 👈 서버 메시지로 대체 (id도 서버 id로 바뀜)
-                    } else {
-                        out.append(s)        // 정말 새로운 메시지면 추가
-                    }
+            .onReceive(stompManager.$latestMessage.compactMap { $0 }) { s in
+                // upsert by id (== clientMessageId)
+                if let idx = uiMessages.firstIndex(where: { $0.id == s.id }) {
+                    uiMessages[idx] = s
+                } else {
+                    uiMessages.append(s)
                 }
-                uiMessages = out
             }
-
         }
 
         private var memberScrollView: some View {
@@ -212,40 +200,69 @@ struct ChatRoomView: View {
 
 
 
-        private var inputSection: some View {
-            HStack {
-                TextField("메시지 입력", text: $inputMessage)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .focused($isInputFocused)
-
-                Button("보내기") {
-                    let emotion = "neutral" // ✅ 직접 emotion 정의
-
-                    let result = EmotionResult(
-                        id: UUID().uuidString,  // UUID로 고유 id 생성
-                        client_text: inputMessage,
-                        pitch: 0,
-                        volume: 0,
-                        emotion: "neutral",
-                        confidence: 0.0,
-                        source: "manual",
-                        fontName: nil,
-                        emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
-                        senderId: currentUserId,                 // ✅ 추가
-                        senderName: "Current User",              // 현재 사용자 이름
-                        sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
-                    )
-
-
-                    pendingMessages.append(result)
-                    stompSendTextMessage()
-                    inputMessage = ""
-                    isInputFocused = false
+    // ⬇️ 이 블록 전체를 교체
+    private var inputSection: some View {
+        HStack {
+            TextField("메시지 입력", text: $inputMessage)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .focused($isInputFocused)
+            
+            Button("보내기", action: {
+                // 0) 공백 방지
+                let text = inputMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.isEmpty {
+                    return
                 }
+                
+                // 1) 임시 버블(draft) 생성
+                let draft = EmotionResult.draft(
+                    text: text,
+                    currentUserId: currentUserId
+                ) // 이름은 "Me"로 자동
 
-            }
-            .padding()
+                
+                // 2) 화면에 즉시 표시 (내 말풍선)
+                uiMessages.append(
+                    ChatMessageModel(
+                        id: draft.id,
+                        senderId: currentUserId,
+                        senderName: "Me",
+                        content: draft.client_text,
+                        sentAt: draft.sentAt,
+                        emotion: "neutral",
+                        fontName: emotionStyles["neutral"]?.fontName,
+                        emoji: emotionStyles["neutral"]?.emoji,
+                        source: "client"
+                    )
+                )
+                
+                // 3) 서버 저장
+                stompManager.sendMessage(draft)
+                
+                // 4) 입력창 정리
+                inputMessage = ""
+                isInputFocused = false
+            })
         }
+        .padding()
+    }
+
+
+    private func upsertIncoming(_ m: EmotionResult) {
+        // 1) clientMessageId로 매치 → 있으면 덮어쓰기
+        if let i = messages.firstIndex(where: { $0.id == m.id }) {
+            messages[i] = m
+            return
+        }
+
+        // 2) 혹시 내 메시지라면(임시 버블을 못 찾았더라도) append 금지
+        if let sid = m.senderId, sid == currentUserId {
+            return
+        }
+
+        // 3) 그 외에는 새로 추가
+        messages.append(m)
+    }
 
     @ViewBuilder
     func emotionMessageView(for msg: EmotionResult) -> some View {
@@ -277,19 +294,14 @@ struct ChatRoomView: View {
     
     private func onAppearActions() {
         print("👣 onAppearActions 진입. roomId=\(room.id)")
-        for family in UIFont.familyNames {
-            for name in UIFont.fontNames(forFamilyName: family) {
-                print("📌 \(name)")
-            }
-        }
+       
         fetchChatRoomMembers(roomId: room.id)
 
         stompManager.fetchRecentMessages(roomId: room.id) { msgs in
                 print("📥 fetchRecentMessages 완료. 개수=\(msgs.count)")
                 DispatchQueue.main.async {
                     let enriched = msgs.map { enrichEmotionFields($0) }
-                    self.stompManager.messages = enriched   // (필요 시 유지)
-                    self.uiMessages = enriched              // ✅ 화면 소스 채우기
+                    self.uiMessages = enriched
                 }
             }
 
@@ -314,32 +326,52 @@ struct ChatRoomView: View {
     }
 
         private func onDisappearActions() {
-            stompManager.disconnect()
+            stompManager.disconnectStomp()
             wsManager.disconnect()
         }
 
+    // 파일: ChatRoomView.swift
     private func handleIncomingEmotionResult(with r: EmotionResult) {
-        // 0) HuBERT는 화면 갱신만/표시 안 함
-        guard r.source != "hubert" else { return }
+        // 0) OpenAI만 화면 갱신 (hubert는 무시)
+        guard r.source == "openai" else { return }
 
         // 1) 스타일 보강
         var fixed = r
-        if fixed.emoji == nil { fixed.emoji = emotionStyles[r.emotion]?.emoji }
+        if fixed.emoji == nil {
+            let key = r.emotion.lowercased()
+            fixed.emoji = emotionStyles[key]?.emoji ?? "🙂"
+        }
 
-        // 2) 같은 id로 제자리 갱신 (remove/append 금지)
-        if let idx = uiMessages.firstIndex(where: { $0.id == fixed.id }) {
-            uiMessages[idx] = uiMessages[idx].withUpdated(
-                content: fixed.client_text,
-                emotion: fixed.emotion,
-                fontName: fixed.fontName ?? uiMessages[idx].fontName,
-                emoji: fixed.emoji ?? uiMessages[idx].emoji,
-                source: "openai"
-            )
-        } else if let idx = uiMessages.firstIndex(where: {
-            $0.senderId == currentUserId &&
-            $0.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            == fixed.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
-        }) {
+        // 2) 덮어쓰기 대상 인덱스 찾기 (우선순위: id → pendingId → 최근 내 프리뷰)
+        var targetIndex: Int? = uiMessages.firstIndex(where: { $0.id == fixed.id })
+
+        if targetIndex == nil, let pid = pendingMessageId {
+            targetIndex = uiMessages.firstIndex(where: { $0.id == pid })
+            if targetIndex != nil, !fixed.id.isEmpty {
+                // pending id로 찾았으면, 가능하면 id를 확정(clientMessageId)로 바꿔줌
+                let base = uiMessages[targetIndex!]
+                uiMessages[targetIndex!] = ChatMessageModel(
+                    id: fixed.id,
+                    senderId: base.senderId,
+                    senderName: base.senderName,
+                    content: base.content,
+                    sentAt: base.sentAt,
+                    emotion: base.emotion,
+                    fontName: base.fontName,
+                    emoji: base.emoji,
+                    source: base.source
+                )
+            }
+        }
+
+        if targetIndex == nil {
+            targetIndex = uiMessages.lastIndex {
+                $0.senderId == currentUserId && ($0.source == "client" || $0.source == "manual")
+            }
+        }
+
+        // 3) 대상이 있으면 덮어쓰기, 없으면 남의 메시지일 때만 추가
+        if let idx = targetIndex {
             uiMessages[idx] = uiMessages[idx].withUpdated(
                 content: fixed.client_text,
                 emotion: fixed.emotion,
@@ -348,43 +380,44 @@ struct ChatRoomView: View {
                 source: "openai"
             )
         } else {
-            // 보호용: 못 찾으면 append
-            uiMessages.append(ChatMessageModel(
-                id: fixed.id,
-                senderId: currentUserId,
-                senderName: "Me",
-                content: fixed.client_text,
-                sentAt: fixed.sentAt, emotion: fixed.emotion,
-                fontName: fixed.fontName,
-                emoji: fixed.emoji,
-                source: "openai"
-            ))
-        }
-
-        // 3) ✅ 최종만 서버로 저장 (한 번만)
-        if fixed.source == "openai", !sentFinalIds.contains(fixed.id) {
-            sentFinalIds.insert(fixed.id)
-
-            // 서버 저장용 DTO 구성 (서버가 기대하는 필드만)
-            let finalToSend = EmotionResult(
-                id: fixed.id,                 // client_id 유지(브로드캐스트 합치기용)
-                client_text: fixed.client_text,
-                pitch: 0,
-                volume: 0,
-                emotion: fixed.emotion,
-                confidence: fixed.confidence,
-                source: "openai",
-                fontName: fixed.fontName,
-                emoji: fixed.emoji,
-                senderId: currentUserId,
-                senderName: "Current User",
-                sentAt: fixed.sentAt
+            // 내 메시지인데 매칭 실패하면 중복 위험 → 추가 금지
+            if fixed.senderId == currentUserId { return }
+            uiMessages.append(
+                ChatMessageModel(
+                    id: fixed.id.isEmpty ? UUID().uuidString : fixed.id,
+                    senderId: fixed.senderId ?? -1,
+                    senderName: fixed.senderName.isEmpty ? "Unknown" : fixed.senderName,
+                    content: fixed.client_text,
+                    sentAt: fixed.sentAt,
+                    emotion: fixed.emotion,
+                    fontName: fixed.fontName,
+                    emoji: fixed.emoji,
+                    source: "openai"
+                )
             )
-
-            print("💾 [SAVE] 서버로 최종 메시지 전송(id=\(fixed.id))")
-            stompManager.sendMessage(finalToSend)
         }
+
+        pendingMessageId = nil
+
+        // 4) 🔴 서버에 최종값 업서트 전송 (여기 빠져 있으면 DB에 반영 안 됨!)
+        //    동일 clientMessageId로 보내야 서버가 기존 레코드 갱신합니다.
+        let finalToSend = EmotionResult(
+            id: fixed.id,                 // == clientMessageId (필수)
+            client_text: fixed.client_text,
+            pitch: 0, volume: 0,
+            emotion: fixed.emotion,
+            confidence: fixed.confidence,
+            source: "openai",
+            fontName: fixed.fontName,
+            emoji: fixed.emoji,
+            senderId: currentUserId,
+            senderName: "Current User",
+            sentAt: fixed.sentAt
+        )
+        stompManager.sendMessage(finalToSend)
     }
+
+
 
 //    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
 //        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
@@ -428,46 +461,49 @@ struct ChatRoomView: View {
         pendingMessageId = tempId
 
         let style = emotionStyles["neutral"]
+       
         let provisional = ChatMessageModel(
-            id: tempId,                 // 🔑 최종까지 유지할 id
+            id: tempId,
             senderId: currentUserId,
             senderName: "Me",
-            content: trimmed,           // 이모지는 뷰에서 표시
-            sentAt: ISO8601DateFormatter().string(from: Date()), emotion: "neutral",
+            content: trimmed,
+            sentAt: ISO8601DateFormatter().string(from: Date()),
+            emotion: "neutral",
             fontName: style?.fontName,
             emoji: style?.emoji,
             source: "client"
         )
-        uiMessages.append(provisional)
+
+
+        // ⬇️ append → upsert 로 교체
+        if let i = uiMessages.firstIndex(where: { $0.id == provisional.id }) {
+            uiMessages[i] = provisional
+        } else {
+            uiMessages.append(provisional)
+        }
+
         return (tempId, trimmed)
     }
 
        
 
-    private func stompSendTextMessage() {
-        if !inputMessage.isEmpty {
-            let emotion = "neutral" // ✅ 먼저 정의
-
-            let result = EmotionResult(
-                id: UUID().uuidString,  // UUID로 고유 id 생성
-                client_text: inputMessage,
-                pitch: 0,
-                volume: 0,
-                emotion: "neutral",
-                confidence: 0.0,
-                source: "manual",
-                fontName: nil,
-                emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
-                senderId: currentUserId,                 // ✅ 추가
-                senderName: "Current User",              // 현재 사용자 이름
-                sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
-            )
-
-
-            stompManager.sendMessage(result)
-            inputMessage = ""
-        }
+    // ⬇️ 새 전송 함수
+    private func stompSendTextMessage(clientMessageId: String, content: String, sentAt: String) {
+        // 서버가 기대하는 필드명에 맞게 조정:
+        // 예) SpringBoot DTO가 clientMessageId/content/senderId/sentAt 를 받는 경우
+        let payload: [String: Any] = [
+            "clientMessageId": clientMessageId, // 🔑 반드시 포함 (UI 병합 키)
+            "content": content,
+            "senderId": currentUserId,
+            "roomId": room.id,                  // 서버에서 필요하면 포함
+            "sentAt": sentAt
+        ]
+        // ChatStompManager에 JSON 전송 유틸이 있다면 그것 사용
+        stompManager.sendJSON("/app/chat.send", payload: payload)
     }
+
+
+   
 
 
     @ViewBuilder

@@ -5,6 +5,8 @@ import Starscream
 class ChatStompManager: ObservableObject {
     private var socketClient = StompClientLib()
     @Published var messages: [ChatMessageModel] = []
+    @Published var latestMessage: ChatMessageModel? = nil   // ✅ 추가
+
     
     private(set) var currentRoomId: Int = 0
     private(set) var currentUserId: Int = 0
@@ -158,11 +160,49 @@ class ChatStompManager: ObservableObject {
         print("🚀 [iOS] WebSocket 연결 시도")
     }
 
-    func disconnect() {
-        socketClient.disconnect()
-        print("❌ [iOS] WebSocket 연결 종료")
+    /// JSON 딕셔너리를 STOMP로 보내는 래퍼
+    func sendJSON(_ destination: String,
+                  payload: [String: Any],
+                  headers: [String:String] = ["content-type":"application/json"]) {
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let json = String(data: data, encoding: .utf8) else {
+            print("❌ [STOMP] JSON 직렬화 실패")
+            return
+        }
+
+        // ⬇️ 여기! socketClient 로 보내야 함
+        socketClient.sendMessage(
+            message: json,
+            toDestination: destination,
+            withHeaders: headers,
+            withReceipt: nil
+        )
+    }
+    /// clientMessageId 포함 텍스트 전송 (뷰에서 호출)
+    func sendTextMessage(clientMessageId: String, content: String, sentAt: String) {
+        let payload: [String: Any] = [
+            "clientMessageId": clientMessageId, // 🔑 중복 방지 키
+            "chatRoomId": currentRoomId,
+            "senderId": currentUserId,
+            "content": content,
+            "sentAt": sentAt
+            // 필요하면 emotion/fontName/emoji 도 추가 가능
+        ]
+        sendJSON("/app/chat.sendMessage/\(currentRoomId)", payload: payload)
     }
 
+    /// 서버 DTO가 EmotionResult를 받는다면 이 오버로드도 편합니다
+//        func sendMessage(_ m: EmotionResult) {
+//            let payload: [String: Any] = [
+//                "clientMessageId": m.id,
+//                "content": m.client_text,
+//                "senderId": m.senderId ?? 0,
+//                "roomId": m.senderId ?? 0, // 필요 없으면 제거
+//                "sentAt": m.sentAt
+//            ]
+//            sendJSON("/app/chat.send", payload: payload)
+//        }
 //    func sendMessage(_ message: String) {
 //        let json: [String: Any] = [
 //            "chatRoomId": currentRoomId,
@@ -175,43 +215,49 @@ class ChatStompManager: ObservableObject {
 //            toDestination: "/app/chat.sendMessage/\(currentRoomId)"
 //        )
 //    }
+    func updateMessage(clientMessageId: String, emotion: String?, fontName: String?, emoji: String?) {
+        var payload: [String: Any] = [
+            "clientMessageId": clientMessageId,
+            "chatRoomId": currentRoomId,
+            "senderId": currentUserId
+        ]
+        if let e = emotion { payload["emotion"] = e }
+        if let f = fontName { payload["fontName"] = f }
+        if let em = emoji   { payload["emoji"] = em }
+
+        // 서버 매핑에 맞춰 경로만 확인
+        sendJSON("/app/chat.updateMessage/\(currentRoomId)", payload: payload)
+    }
+
+    func disconnectStomp() {
+            socketClient.disconnect()
+            print("❌ [iOS] WebSocket 연결 종료")
+        }
     func sendMessage(_ result: EmotionResult) {
         let key = result.emotion.lowercased()
         let resolvedFontName = result.fontName ?? emotionStyles[key]?.fontName ?? "YOnepick-Regular"
         let resolvedEmoji     = result.emoji ?? emotionStyles[key]?.emoji ?? "🙂"
 
+        // ✅ 서버 DTO가 기대하는 키 이름 유지: chatRoomId / senderId / content
         let json: [String: Any] = [
-            "chatRoomId": currentRoomId,
+            "chatRoomId": currentRoomId,         // ❗️roomId 말고 chatRoomId
             "senderId": currentUserId,
             "content": result.client_text,
-            "emotion": result.emotion,
+            "clientMessageId": result.id,        // 🔑 추가
+            "sentAt": result.sentAt,             // (선택) 서버가 무시해도 OK
+            "emotion": result.emotion,           // (옵션) 없으면 서버에서 null
             "fontName": resolvedFontName,
             "emoji": resolvedEmoji
         ]
 
         print("📤 [STOMP] 메시지 전송: \(json)")
+        // ✅ 원래 잘되던 방식 유지
         socketClient.sendJSONForDict(
             dict: json as NSDictionary,
             toDestination: "/app/chat.sendMessage/\(currentRoomId)"
         )
-
-//        // (선택) 에코 오기 전에 로컬 프리뷰를 보여주고 싶다면 아래 유지, 아니면 제거
-//        DispatchQueue.main.async {
-//            self.messages.append(
-//                ChatMessageModel(
-//                    id: UUID().uuidString,
-//                    senderId: self.currentUserId,
-//                    senderName: "나",
-//                    content: result.client_text,
-//                    sentAt: ISO8601DateFormatter().string(from: Date()),
-//                    emotion: result.emotion,
-//                    fontName: resolvedFontName,
-//                    emoji: resolvedEmoji,
-//                    source: "client"
-//                )
-//            )
-//        }
     }
+
 
 
 
@@ -288,10 +334,19 @@ extension ChatStompManager: StompClientLibDelegate {
             
             if let data = stringBody?.data(using: .utf8) {
                 do {
-                    let newMessage = try JSONDecoder().decode(ChatMessageModel.self, from: data)
+                    var newMessage = try JSONDecoder().decode(ChatMessageModel.self, from: data)
+                    
+                    // 감정 스타일 필드 직접 세팅 (필요하면)
+                    let emotionKey = (newMessage.emotion ?? "neutral").lowercased()
+                    if let style = emotionStyles[emotionKey] {
+                        newMessage.emoji = style.emoji
+                        newMessage.fontName = style.fontName
+                    }
+
+                    
                     DispatchQueue.main.async {
                         self.messages.append(newMessage)
-                        print("✅ [iOS] 실시간 메시지 리스트에 추가됨")
+                        self.latestMessage = newMessage
                     }
                 } catch {
                     print("❌ [iOS] 메시지 디코딩 실패: \(error)")
