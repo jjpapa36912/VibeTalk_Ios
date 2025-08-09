@@ -81,26 +81,55 @@ struct ChatRoomView: View {
             }
         }
 
-        private var messageScrollView: some View {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(messages, id: \ .id) { msg in
-                            emotionMessageView(for: msg)
-                                    .id(msg.id)
-                        }
+    private var messageScrollView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(stompManager.messages) { msg in
+                        ChatBubbleView(
+                            message: msg,
+                            isCurrentUser: msg.senderId == currentUserId
+                        )
+                        .id(msg.id)
                     }
-                    .padding(.horizontal)
                 }
-                .onChange(of: messages.count) { _ in
-                    if let lastMessage = messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
+                .padding(.horizontal)
+            }
+            .onChange(of: stompManager.messages.count) { _ in
+                if let last = stompManager.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
+    }
+
+    
+    private func isCurrentUserMessage(_ model: ChatMessageModel, currentUserId: Int) -> Bool {
+        // 1순위: senderId가 있으면 그걸로
+        if model.senderId >= 0 { return model.senderId == currentUserId }
+        // 2순위(보완): 수동 전송/보낸이 이름 기반
+        return model.source == "manual" || model.senderName == "Current User"
+    }
+
+    // 행 그리기용 평탄화 데이터 (타입 추론 쉬움)
+    private struct MessageRowData: Identifiable, Equatable {
+        let id: String
+        let message: ChatMessageModel
+        let isMine: Bool
+    }
+
+    private struct MessageRow: View {
+        let row: MessageRowData
+        var body: some View {
+            ChatBubbleView(
+                message: row.message,       // ✅ 이제 타입이 딱 맞음
+                isCurrentUser: row.isMine
+            )
+        }
+    }
+
+
+
 
         private var micButton: some View {
             Button(action: {
@@ -131,19 +160,23 @@ struct ChatRoomView: View {
                 Button("보내기") {
                     let emotion = "neutral" // ✅ 직접 emotion 정의
 
-                    let newMessage = EmotionResult(
-                        id: Int.random(in: 100000...999999),
+                    let result = EmotionResult(
+                        id: UUID().uuidString,  // UUID로 고유 id 생성
                         client_text: inputMessage,
                         pitch: 0,
                         volume: 0,
-                        emotion: emotion,
-                        confidence: 0.5,
+                        emotion: "neutral",
+                        confidence: 0.0,
                         source: "manual",
                         fontName: nil,
-                        emoji: emotionStyles[emotion]?.emoji  // ✅ 이제 에러 안 남
+                        emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
+                        senderId: currentUserId,                 // ✅ 추가
+                        senderName: "Current User",              // 현재 사용자 이름
+                        sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
                     )
 
-                    messages.append(newMessage)
+
+                    messages.append(result)
                     stompSendTextMessage()
                     inputMessage = ""
                     isInputFocused = false
@@ -181,39 +214,23 @@ struct ChatRoomView: View {
 //            }
 //        }
 
-        private func onAppearActions() {
-            fetchChatRoomMembers(roomId: room.id)
+    private func onAppearActions() {
+        print("👣 onAppearActions 진입. roomId=\(room.id)")
+        fetchChatRoomMembers(roomId: room.id)
 
-            stompManager.fetchRecentMessages(roomId: room.id) { msgs in
-                DispatchQueue.main.async {
-                    print("📥 초기 메시지 불러오기 완료: \(msgs.count)개")
-
-                    self.messages = msgs.compactMap { msg in
-                        let emotion = msg.emotion ?? "neutral"
-                        let fontName: String = msg.fontName ?? emotionStyles[emotion]?.fontName ?? "YOnepick-Regular"
-                        let fontSize: CGFloat = emotionStyles[emotion]?.fontSize ?? 22
-                        let font = Font.custom(fontName, size: fontSize)
-
-                        return EmotionResult(
-                            id: Int.random(in: 100000...999999),
-                            client_text: msg.content,
-                            pitch: 0,
-                            volume: 0,
-                            emotion: emotion,
-                            confidence: 0.5,
-                            source: "hubert",
-                            fontName: fontName,
-                            emoji: msg.emoji ?? emotionStyles[emotion]?.emoji  // ✅ 서버 응답 사용 우선
-                        )
-                    }
-                }
+        stompManager.fetchRecentMessages(roomId: room.id) { msgs in
+            print("📥 fetchRecentMessages 완료. 개수=\(msgs.count)")
+            DispatchQueue.main.async {
+                self.stompManager.messages = msgs        // ✅ 한 곳만 세팅
+                print("🧩 UI messages 세팅 완료. count=\(self.stompManager.messages.count)")
             }
-
-
-            stompManager.connect(roomId: room.id, userId: currentUserId)
-            markRoomAsRead(roomId: room.id)
-            wsManager.connect()
         }
+
+        stompManager.connect(roomId: room.id, userId: currentUserId)
+        markRoomAsRead(roomId: room.id)
+        wsManager.connect()  // 감정 WS는 결과만 받아서 최종 전송 트리거 용도로만 사용
+    }
+
 
         private func onDisappearActions() {
             stompManager.disconnect()
@@ -253,42 +270,27 @@ struct ChatRoomView: View {
         self.inputMessage = ""
     }
 
-//    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
-//        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
-//
-//        if let index = messages.firstIndex(where: { $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines) == newResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines) }) {
-//            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
-//            messages[index] = newResult
-//        } else {
-//            print("➕ 새 메시지 추가")
-//            messages.append(newResult)
-//        }
-//
-//        if newResult.source == "openai" {
-//            let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
-//            let finalMessage = "\(style.emoji) \(newResult.client_text)"
-//            print("🧠 OpenAI 응답 전송: \(finalMessage)")
-//            stompManager.sendMessage(newResult)
-//        }
-//
-//        self.inputMessage = ""
-//    }
+
 
     private func stompSendTextMessage() {
         if !inputMessage.isEmpty {
             let emotion = "neutral" // ✅ 먼저 정의
 
             let result = EmotionResult(
-                id: Int.random(in: 100000...999999),
+                id: UUID().uuidString,  // UUID로 고유 id 생성
                 client_text: inputMessage,
                 pitch: 0,
                 volume: 0,
-                emotion: emotion,
-                confidence: 0.5,
-                source: "hubert",
-                fontName: emotionStyles[emotion]?.fontName ?? "YOnepick-Regular",
-                emoji: emotionStyles[emotion]?.emoji  // ✅ 이제 문제 없음
+                emotion: "neutral",
+                confidence: 0.0,
+                source: "manual",
+                fontName: nil,
+                emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
+                senderId: currentUserId,                 // ✅ 추가
+                senderName: "Current User",              // 현재 사용자 이름
+                sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
             )
+
 
             stompManager.sendMessage(result)
             inputMessage = ""
@@ -329,7 +331,7 @@ struct ChatRoomView: View {
             let emotion = "neutral" // ✅ 먼저 emotion 정의
 
             let result = EmotionResult(
-                id: Int.random(in: 100000...999999),
+                id: UUID().uuidString,  // UUID로 고유 id 생성
                 client_text: inputMessage,
                 pitch: 0,
                 volume: 0,
@@ -337,8 +339,12 @@ struct ChatRoomView: View {
                 confidence: 0.0,
                 source: "manual",
                 fontName: nil,
-                emoji: emotionStyles[emotion]?.emoji // ✅ 여기 추가
+                emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
+                senderId: currentUserId,                 // ✅ 추가
+                senderName: "Current User",              // 현재 사용자 이름
+                sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
             )
+
             stompManager.sendMessage(result)
             inputMessage = ""
             return
@@ -444,24 +450,41 @@ struct ChatRoomView: View {
     }
 
     private func fetchChatRoomMembers(roomId: Int) {
-        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/members"),
-              let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { data, _, error in
-            if let error = error {
-                print("❌ 멤버 조회 실패:", error.localizedDescription)
-                return
-            }
-            guard let data = data else { return }
-            if let decoded = try? JSONDecoder().decode([ChatMember].self, from: data) {
-                DispatchQueue.main.async {
-                    print("✅ 멤버 불러오기 성공: \(decoded.count)명")
-                    self.members = decoded
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
+
+        func request(_ urlString: String, label: String, then next: (() -> Void)? = nil) {
+            guard let url = URL(string: urlString) else { next?(); return }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+            print("🔎 [HTTP] GET(\(label)) \(url.absoluteString)")
+            URLSession.shared.dataTask(with: req) { data, resp, error in
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
+                if let error = error { print("❌ 멤버 에러(\(label)): \(error)"); next?(); return }
+                print("📡 멤버 상태(\(label)): \(code)")
+                guard let data = data else { next?(); return }
+
+                if code == 401 || code == 403 {
+                    let raw = String(data: data, encoding: .utf8) ?? "<no body>"
+                    print("🚫 멤버 권한(\(label)) RAW: \(raw)")
+                    next?(); return
                 }
-            } else {
-                print("⚠️ 멤버 디코딩 실패")
-            }
-        }.resume()
+
+                if let decoded = try? JSONDecoder().decode([ChatMember].self, from: data) {
+                    DispatchQueue.main.async { self.members = decoded }
+                } else {
+                    let preview = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
+                    print("⚠️ 멤버 디코딩 실패(\(label)) preview: \(preview)")
+                    next?()
+                }
+            }.resume()
+        }
+
+        let primary = "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/members"
+        let fallback = "\(AppConfig.baseURLSpringBoot)/chat/rooms/\(roomId)/members"
+        request(primary, label: "primary") {
+            request(fallback, label: "fallback") { }
+        }
     }
+
 }

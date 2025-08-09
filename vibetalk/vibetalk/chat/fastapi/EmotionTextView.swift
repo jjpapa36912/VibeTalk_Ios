@@ -50,46 +50,76 @@ struct EmotionStyle {
 
 
 }
-//struct EmotionResult: Identifiable, Codable {
-//    let id: Int  // ✅ 이 필드를 추가
-//    let client_text: String
-//    let pitch: Float
-//    let volume: Float
-//    let emotion: String
-//    let confidence: Float
-//    let source: String
-//    let fontName: String?
-//    
-//    var font: Font?
-//
-//    private enum CodingKeys: String, CodingKey {
-//        case id, client_text, pitch, volume, emotion, confidence, source, fontName
-//        // font는 Codable에서 제외됨
-//    }
-//}
+
+
+
 struct EmotionResult: Codable, Identifiable, Equatable {
-    var id: Int = UUID().hashValue
-    
+    var id: String
     let client_text: String
     let pitch: Float
     let volume: Float
     let emotion: String
     let confidence: Float
     let source: String
-    var fontName: String?   // ✅ 바뀔 수 있으므로 var로
-    var emoji: String?        // ✅ 추가
-    let font: Font? = nil
+    var fontName: String?
+    var emoji: String?
+    let senderId: Int?         // ✅ 추가
+    let senderName: String
+    let sentAt: String
 
     enum CodingKeys: String, CodingKey {
-        case client_text, pitch, volume, emotion, confidence, source, fontName, emoji  // ✅ 추가
+        case id, client_text, pitch, volume, emotion, confidence, source, fontName, emoji, senderId, senderName, sentAt
+    }
+
+    // 멤버와이즈 생성자, init(from:)에서도 senderId 디코딩
+    init(
+        id: String,
+        client_text: String,
+        pitch: Float,
+        volume: Float,
+        emotion: String,
+        confidence: Float,
+        source: String,
+        fontName: String?,
+        emoji: String?,
+        senderId: Int?,        // ✅ 추가
+        senderName: String,
+        sentAt: String
+    ) {
+        self.id = id
+        self.client_text = client_text
+        self.pitch = pitch
+        self.volume = volume
+        self.emotion = emotion
+        self.confidence = confidence
+        self.source = source
+        self.fontName = fontName
+        self.emoji = emoji
+        self.senderId = senderId
+        self.senderName = senderName
+        self.sentAt = sentAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.client_text = try container.decode(String.self, forKey: .client_text)
+        self.pitch = try container.decode(Float.self, forKey: .pitch)
+        self.volume = try container.decode(Float.self, forKey: .volume)
+        self.emotion = try container.decode(String.self, forKey: .emotion)
+        self.confidence = try container.decode(Float.self, forKey: .confidence)
+        self.source = try container.decode(String.self, forKey: .source)
+        self.fontName = try container.decodeIfPresent(String.self, forKey: .fontName)
+        self.emoji = try container.decodeIfPresent(String.self, forKey: .emoji)
+        self.senderId = try container.decodeIfPresent(Int.self, forKey: .senderId)  // ✅ 추가
+        self.senderName = try container.decode(String.self, forKey: .senderName)
+        self.sentAt = try container.decode(String.self, forKey: .sentAt)
     }
 
     static func == (lhs: EmotionResult, rhs: EmotionResult) -> Bool {
-        return lhs.id == rhs.id
+        lhs.id == rhs.id
     }
 }
-
-
 
 
 
