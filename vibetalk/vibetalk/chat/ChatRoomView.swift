@@ -41,9 +41,17 @@ struct ChatRoomView: View {
     @State private var members: [ChatMember] = []
     @StateObject private var recorder = SpeechRecorder()
     @StateObject private var wsManager = EmotionWebSocketManager()
-    @State private var messages: [EmotionResult] = []
+//    @State private var messages: [EmotionResult] = []
     @FocusState private var isInputFocused: Bool  // 🔍 포커스 상태 추적
     @State private var lastMessageId: UUID?  // 🔴 추가됨
+    @State private var pendingMessageId: String?
+    @State private var pendingMessages: [EmotionResult] = []   // 임시(로컬) 메시지 전용
+    @State private var uiMessages: [ChatMessageModel] = []   // 화면에 그릴 ‘단일’ 소스
+    @State private var sentFinalIds: Set<String> = []  // 이미 서버에 보낸 client_id들
+
+
+
+
 
 
 
@@ -68,8 +76,30 @@ struct ChatRoomView: View {
             .onAppear(perform: onAppearActions)
             .onDisappear(perform: onDisappearActions)
             .onReceive(wsManager.$latestEmotionResult.compactMap { $0 }) { newResult in
-                handleIncomingEmotionResult(with: newResult)
+                handleIncomingEmotionResult(with: newResult)  // 여기서 uiMessages를 in-place 업데이트
             }
+            // ③ STOMP 서버 메시지/이력 → 화면 소스(uiMessages)에 머지
+        
+            .onReceive(stompManager.$messages) { serverMsgs in
+                var out = uiMessages
+                for s in serverMsgs.map(enrichEmotionFields) {
+                    if let idx = out.firstIndex(where: { $0.id == s.id }) {
+                        // 같은 id면 그대로 덮어쓰기
+                        out[idx] = s
+                    } else if let idxByMine = out.firstIndex(where: {
+                        // 내 임시 버블과 동일 텍스트(또는 pendingMessageId 매칭)인 경우 서버 id로 치환
+                        $0.senderId == currentUserId &&
+                        $0.content.trimmingCharacters(in: .whitespacesAndNewlines) ==
+                        s.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }) {
+                        out[idxByMine] = s   // 👈 서버 메시지로 대체 (id도 서버 id로 바뀜)
+                    } else {
+                        out.append(s)        // 정말 새로운 메시지면 추가
+                    }
+                }
+                uiMessages = out
+            }
+
         }
 
         private var memberScrollView: some View {
@@ -83,12 +113,29 @@ struct ChatRoomView: View {
                 .padding(.top, 8)
             }
         }
+    private func adaptToChatMessage(_ e: EmotionResult) -> ChatMessageModel {
+        return ChatMessageModel(
+            id: e.id,
+            senderId: currentUserId,
+            senderName: "Me",
+            content: e.client_text,     // ❗️순수 텍스트만
+            sentAt: e.sentAt, emotion: e.emotion,
+            fontName: e.fontName,
+            emoji: e.emoji,             // 이모지는 필드로만
+            source: e.source
+        )
+    }
+
+    // 서버 + 임시를 하나로 묶어 렌더
+    private var combinedMessages: [ChatMessageModel] {
+        stompManager.messages + pendingMessages.map(adaptToChatMessage)
+    }
 
     private var messageScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(stompManager.messages) { msg in
+                    ForEach(uiMessages) { msg in
                         ChatBubbleView(
                             message: msg,
                             isCurrentUser: msg.senderId == currentUserId
@@ -98,13 +145,16 @@ struct ChatRoomView: View {
                 }
                 .padding(.horizontal)
             }
-            .onChange(of: stompManager.messages.count) { _ in
-                if let last = stompManager.messages.last {
+            // 개수 변화(append 때만) 스크롤. in-place update는 count 변화 없음 → 스크롤 안 튐
+            .onChange(of: uiMessages.count) { _ in
+                if let last = uiMessages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
     }
+
+
 
     
     private func isCurrentUserMessage(_ model: ChatMessageModel, currentUserId: Int) -> Bool {
@@ -134,25 +184,33 @@ struct ChatRoomView: View {
 
 
 
-        private var micButton: some View {
-            Button(action: {
-                if recorder.isRecording {
-                    recorder.stopRecording()
-                    sendWithFastAPI()
-                } else {
-                    recorder.startRecording()
-                }
-            }) {
-                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(recorder.isRecording ? .red : .blue)
+    private var micButton: some View {
+        Button(action: {
+            if recorder.isRecording {
+                recorder.stopRecording()
+
+                // 임시 버블 추가 + 텍스트/ID 받기
+                let (tempId, tempText) = stopRecordingAndSend()
+                guard !tempId.isEmpty else { return }
+
+                // 서버에 clientMessageId 함께 전송
+                sendWithFastAPI(text: tempText, clientMessageId: tempId)
+
+                inputMessage = ""
+            } else {
+                recorder.startRecording()
             }
-            .onReceive(recorder.$recognizedText) { text in
-                if recorder.isRecording {
-                    self.inputMessage = text
-                }
-            }
+        }) {
+            Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                .font(.system(size: 30))
+                .foregroundColor(recorder.isRecording ? .red : .blue)
         }
+        .onReceive(recorder.$recognizedText) { text in
+            if recorder.isRecording { self.inputMessage = text }
+        }
+    }
+
+
 
         private var inputSection: some View {
             HStack {
@@ -179,7 +237,7 @@ struct ChatRoomView: View {
                     )
 
 
-                    messages.append(result)
+                    pendingMessages.append(result)
                     stompSendTextMessage()
                     inputMessage = ""
                     isInputFocused = false
@@ -227,12 +285,13 @@ struct ChatRoomView: View {
         fetchChatRoomMembers(roomId: room.id)
 
         stompManager.fetchRecentMessages(roomId: room.id) { msgs in
-            print("📥 fetchRecentMessages 완료. 개수=\(msgs.count)")
-            DispatchQueue.main.async {
-                self.stompManager.messages = msgs.map { enrichEmotionFields($0) }
-                print("🧩 UI messages 세팅 완료. count=\(self.stompManager.messages.count)")
+                print("📥 fetchRecentMessages 완료. 개수=\(msgs.count)")
+                DispatchQueue.main.async {
+                    let enriched = msgs.map { enrichEmotionFields($0) }
+                    self.stompManager.messages = enriched   // (필요 시 유지)
+                    self.uiMessages = enriched              // ✅ 화면 소스 채우기
+                }
             }
-        }
 
         stompManager.connect(roomId: room.id, userId: currentUserId)
         markRoomAsRead(roomId: room.id)
@@ -259,40 +318,131 @@ struct ChatRoomView: View {
             wsManager.disconnect()
         }
 
-    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
-        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
+    private func handleIncomingEmotionResult(with r: EmotionResult) {
+        // 0) HuBERT는 화면 갱신만/표시 안 함
+        guard r.source != "hubert" else { return }
 
-        let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+        // 1) 스타일 보강
+        var fixed = r
+        if fixed.emoji == nil { fixed.emoji = emotionStyles[r.emotion]?.emoji }
 
-        // ✅ emoji가 비어있으면 스타일에서 가져오기
-        var fixedResult = newResult
-        if fixedResult.emoji == nil {
-            fixedResult.emoji = style.emoji
-        }
-
-        // ✅ 기존 메시지 덮어쓰기 or 새 메시지 추가
-        if let index = messages.firstIndex(where: {
-            $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
-            == fixedResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 2) 같은 id로 제자리 갱신 (remove/append 금지)
+        if let idx = uiMessages.firstIndex(where: { $0.id == fixed.id }) {
+            uiMessages[idx] = uiMessages[idx].withUpdated(
+                content: fixed.client_text,
+                emotion: fixed.emotion,
+                fontName: fixed.fontName ?? uiMessages[idx].fontName,
+                emoji: fixed.emoji ?? uiMessages[idx].emoji,
+                source: "openai"
+            )
+        } else if let idx = uiMessages.firstIndex(where: {
+            $0.senderId == currentUserId &&
+            $0.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            == fixed.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
         }) {
-            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
-            messages[index] = fixedResult
+            uiMessages[idx] = uiMessages[idx].withUpdated(
+                content: fixed.client_text,
+                emotion: fixed.emotion,
+                fontName: fixed.fontName ?? uiMessages[idx].fontName,
+                emoji: fixed.emoji ?? uiMessages[idx].emoji,
+                source: "openai"
+            )
         } else {
-            print("➕ 새 메시지 추가")
-            messages.append(fixedResult)
+            // 보호용: 못 찾으면 append
+            uiMessages.append(ChatMessageModel(
+                id: fixed.id,
+                senderId: currentUserId,
+                senderName: "Me",
+                content: fixed.client_text,
+                sentAt: fixed.sentAt, emotion: fixed.emotion,
+                fontName: fixed.fontName,
+                emoji: fixed.emoji,
+                source: "openai"
+            ))
         }
 
-        // ✅ OpenAI 메시지일 경우 전송
-        if fixedResult.source == "openai" {
-            let finalMessage = "\(fixedResult.emoji ?? "") \(fixedResult.client_text)"
-            print("🧠 OpenAI 응답 전송: \(finalMessage)")
-            stompManager.sendMessage(fixedResult)
-        }
+        // 3) ✅ 최종만 서버로 저장 (한 번만)
+        if fixed.source == "openai", !sentFinalIds.contains(fixed.id) {
+            sentFinalIds.insert(fixed.id)
 
-        self.inputMessage = ""
+            // 서버 저장용 DTO 구성 (서버가 기대하는 필드만)
+            let finalToSend = EmotionResult(
+                id: fixed.id,                 // client_id 유지(브로드캐스트 합치기용)
+                client_text: fixed.client_text,
+                pitch: 0,
+                volume: 0,
+                emotion: fixed.emotion,
+                confidence: fixed.confidence,
+                source: "openai",
+                fontName: fixed.fontName,
+                emoji: fixed.emoji,
+                senderId: currentUserId,
+                senderName: "Current User",
+                sentAt: fixed.sentAt
+            )
+
+            print("💾 [SAVE] 서버로 최종 메시지 전송(id=\(fixed.id))")
+            stompManager.sendMessage(finalToSend)
+        }
     }
 
+//    private func handleIncomingEmotionResult(with newResult: EmotionResult) {
+//        print("📩 WebSocket 수신됨: \(newResult.client_text) (\(newResult.emotion))")
+//
+//        let style = emotionStyles[newResult.emotion] ?? emotionStyles["neutral"]!
+//
+//        // ✅ emoji가 비어있으면 스타일에서 가져오기
+//        var fixedResult = newResult
+//        if fixedResult.emoji == nil {
+//            fixedResult.emoji = style.emoji
+//        }
+//
+//        // ✅ 기존 메시지 덮어쓰기 or 새 메시지 추가
+//        if let index = messages.firstIndex(where: {
+//            $0.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
+//            == fixedResult.client_text.trimmingCharacters(in: .whitespacesAndNewlines)
+//        }) {
+//            print("🔁 기존 메시지 덮어쓰기 at index \(index)")
+//            messages[index] = fixedResult
+//        } else {
+//            print("➕ 새 메시지 추가")
+//            messages.append(fixedResult)
+//        }
+//
+//        // ✅ OpenAI 메시지일 경우 전송
+//        if fixedResult.source == "openai" {
+//            let finalMessage = "\(fixedResult.emoji ?? "") \(fixedResult.client_text)"
+//            print("🧠 OpenAI 응답 전송: \(finalMessage)")
+//            stompManager.sendMessage(fixedResult)
+//        }
+//
+//        self.inputMessage = ""
+//    }
 
+    @discardableResult
+    func stopRecordingAndSend() -> (id: String, text: String) {
+        let trimmed = inputMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ("", "") }
+
+        let tempId = UUID().uuidString
+        pendingMessageId = tempId
+
+        let style = emotionStyles["neutral"]
+        let provisional = ChatMessageModel(
+            id: tempId,                 // 🔑 최종까지 유지할 id
+            senderId: currentUserId,
+            senderName: "Me",
+            content: trimmed,           // 이모지는 뷰에서 표시
+            sentAt: ISO8601DateFormatter().string(from: Date()), emotion: "neutral",
+            fontName: style?.fontName,
+            emoji: style?.emoji,
+            source: "client"
+        )
+        uiMessages.append(provisional)
+        return (tempId, trimmed)
+    }
+
+       
 
     private func stompSendTextMessage() {
         if !inputMessage.isEmpty {
@@ -347,31 +497,7 @@ struct ChatRoomView: View {
         }
     }
 
-    private func sendWithFastAPI() {
-        guard let audioURL = recorder.recordedFileURL else {
-            print("⚠️ [FastAPI] 오디오 URL이 없음. 수동 텍스트 전송 시도")
-            let emotion = "neutral" // ✅ 먼저 emotion 정의
-
-            let result = EmotionResult(
-                id: UUID().uuidString,  // UUID로 고유 id 생성
-                client_text: inputMessage,
-                pitch: 0,
-                volume: 0,
-                emotion: "neutral",
-                confidence: 0.0,
-                source: "manual",
-                fontName: nil,
-                emoji: emotionStyles["neutral"]?.emoji,  // 이모지 추가
-                senderId: currentUserId,                 // ✅ 추가
-                senderName: "Current User",              // 현재 사용자 이름
-                sentAt: ISO8601DateFormatter().string(from: Date())  // 현재 시간
-            )
-
-            stompManager.sendMessage(result)
-            inputMessage = ""
-            return
-        }
-
+    private func sendWithFastAPI(text: String, clientMessageId: String) {
         let url = URL(string: "\(AppConfig.baseURLFastApi)/analyze")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -381,86 +507,42 @@ struct ChatRoomView: View {
 
         var body = Data()
 
-        print("🧱 [FastAPI] Multipart Body 구성 시작")
+        func appendField(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"text\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(inputMessage)\r\n".data(using: .utf8)!)
-        print("📦 text 추가 완료: \(inputMessage)")
+        // 필드들
+        appendField("text", text)
+        appendField("user_id", String(currentUserId))
+        appendField("room_id", String(room.id))
+        appendField("client_id", clientMessageId)   // ✅ 핵심: 임시 버블 id 전달
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(currentUserId)\r\n".data(using: .utf8)!)
-        print("👤 user_id 추가 완료: \(currentUserId)")
-
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"room_id\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(room.id)\r\n".data(using: .utf8)!)
-        print("💬 room_id 추가 완료: \(room.id)")
-        
-        
-
-        let audioData = try! Data(contentsOf: audioURL)
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"audio\"; filename=\"recording.wav\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
-        body.append(audioData)
-        body.append("\r\n".data(using: .utf8)!)
-        print("🎧 audio 추가 완료. 크기: \(audioData.count) bytes")
+        // 오디오(있으면 첨부)
+        if let audioURL = recorder.recordedFileURL,
+           let audioData = try? Data(contentsOf: audioURL) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"audio\"; filename=\"recording.wav\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+            body.append(audioData)
+            body.append("\r\n".data(using: .utf8)!)
+        }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
-        print("📤 [FastAPI] 최종 Body 크기: \(body.count) bytes")
-        print("🚀 [FastAPI] 분석 요청 전송 시작 → \(url)")
-
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("❌ [FastAPI] 요청 중 에러 발생: \(error.localizedDescription)")
+                print("❌ [FastAPI] 요청 에러: \(error.localizedDescription)")
                 return
             }
-
-            if let httpResponse = response as? HTTPURLResponse {
-                print("📡 [FastAPI] 응답 코드: \(httpResponse.statusCode)")
+            if let code = (response as? HTTPURLResponse)?.statusCode {
+                print("📡 [FastAPI] 상태코드: \(code)")
             }
-
-            guard let data = data else {
-                print("❌ [FastAPI] 응답 데이터 없음")
-                return
-            }
-
-            // 1. 우선 status 기반 응답 처리
-            if let result = try? JSONDecoder().decode(AnalyzeResponse.self, from: data) {
-                if result.status == "processing" {
-                    print("✅ [FastAPI] 분석 요청 접수됨. 결과는 WebSocket으로 수신 예정.")
-                    return
-                }
-            }
-
-            // 2. 예외적으로 과거 EmotionResult 포맷이 오는 경우 처리
-            if let result = try? JSONDecoder().decode(EmotionResult.self, from: data) {
-                print("✅ [FastAPI] EmotionResult 응답 수신: \(result)")
-
-                // 🧠 이모지 매핑
-                var enrichedResult = result
-                enrichedResult.emoji = emotionStyles[result.emotion]?.emoji ?? "🙂"
-
-                DispatchQueue.main.async {
-                    self.messages.append(enrichedResult)
-                    self.stompManager.sendMessage(enrichedResult)
-                }
-            }
-                    else {
-                print("❌ [FastAPI] 응답 디코딩 실패")
-                if let raw = String(data: data, encoding: .utf8) {
-                    print("📦 [FastAPI] 응답 본문: \(raw)")
-                } else {
-                    print("📦 [FastAPI] 응답 본문 디코딩 불가 (encoding 문제)")
-                }
-            }
+            // 응답은 보통 "processing" → 결과는 Emotion WS로 옴
         }.resume()
     }
-
 
     private func markRoomAsRead(roomId: Int) {
         guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/read"),

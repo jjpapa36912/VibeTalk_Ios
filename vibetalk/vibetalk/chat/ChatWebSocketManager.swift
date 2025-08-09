@@ -69,6 +69,22 @@ struct ChatMessageModel: Identifiable, Codable, Equatable {
 
 // 서버 DTO -> 뷰 모델 변환 (초기 이력 로딩 등에 사용)
 extension ChatMessageModel {
+    func withUpdated(content: String,
+                         emotion: String?,
+                         fontName: String?,
+                         emoji: String?,
+                         source: String?) -> ChatMessageModel {
+            ChatMessageModel(
+                id: self.id,                 // 🔒 id 유지 → 같은 셀 재사용
+                senderId: self.senderId,
+                senderName: self.senderName,
+                content: content,
+                sentAt: self.sentAt, emotion: emotion ?? self.emotion,
+                fontName: fontName ?? self.fontName,
+                emoji: emoji ?? self.emoji,
+                source: source ?? self.source
+            )
+        }
     init(from r: ChatMessageResponse) {
         self.id = String(r.id)
         self.senderId = r.senderId
