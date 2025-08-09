@@ -1,4 +1,7 @@
 import SwiftUI
+import CoreText
+
+
 struct ChatMember: Codable, Identifiable {
     let id: Int
     let name: String
@@ -213,15 +216,20 @@ struct ChatRoomView: View {
 //                stompManager.sendMessage(inputMessage)
 //            }
 //        }
-
+    
     private func onAppearActions() {
         print("👣 onAppearActions 진입. roomId=\(room.id)")
+        for family in UIFont.familyNames {
+            for name in UIFont.fontNames(forFamilyName: family) {
+                print("📌 \(name)")
+            }
+        }
         fetchChatRoomMembers(roomId: room.id)
 
         stompManager.fetchRecentMessages(roomId: room.id) { msgs in
             print("📥 fetchRecentMessages 완료. 개수=\(msgs.count)")
             DispatchQueue.main.async {
-                self.stompManager.messages = msgs        // ✅ 한 곳만 세팅
+                self.stompManager.messages = msgs.map { enrichEmotionFields($0) }
                 print("🧩 UI messages 세팅 완료. count=\(self.stompManager.messages.count)")
             }
         }
@@ -230,7 +238,21 @@ struct ChatRoomView: View {
         markRoomAsRead(roomId: room.id)
         wsManager.connect()  // 감정 WS는 결과만 받아서 최종 전송 트리거 용도로만 사용
     }
+    
+    
+    
 
+    
+
+    
+    
+    private func enrichEmotionFields(_ m: ChatMessageModel) -> ChatMessageModel {
+        var mm = m
+        let key = (m.emotion ?? "neutral").lowercased()
+        if mm.fontName == nil { mm.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
+        if mm.emoji == nil    { mm.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
+        return mm
+    }
 
         private func onDisappearActions() {
             stompManager.disconnect()

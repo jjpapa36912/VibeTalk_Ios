@@ -126,14 +126,42 @@ struct EmotionResult: Codable, Identifiable, Equatable {
 
 
 
-
 let emotionStyles: [String: EmotionStyle] = [
-    "joy": EmotionStyle(emoji: "😄", color: .yellow, fontSize: 28,font: .custom("YOnepick-Regular", size:28), fontName: "YOnepick-Regular"),
-    "sadness": EmotionStyle(emoji: "😢", color: .blue, fontSize: 26, font: .custom("ChosunCentennial_ttf", size:26), fontName: "ChosunCentennial_ttf"),
-    "anger": EmotionStyle(emoji: "😡", color: .red, fontSize: 30, font: .custom("Giants-Regular", size:30), fontName: "Giants-Regular"),
-    "fear": EmotionStyle(emoji: "😨", color: .purple, fontSize: 26,font: .custom("YOnepick-Regular", size:26), fontName: "YOnepick-Regular"),
-    "surprise": EmotionStyle(emoji: "😲", color: .orange, fontSize: 28,  font: .custom("YOnepick-Regular", size:28), fontName: "YOnepick-Regular"),
-    "curiosity": EmotionStyle(emoji: "🤔", color: .green, fontSize: 24, font: .custom("YOnepick-Regular", size:24), fontName: "YOnepick-Regular"),
-    "neutral": EmotionStyle(emoji: "🙂", color: .gray, fontSize: 22, font: .custom("YOnepick-Regular", size:22), fontName: "YOnepick-Regular")
-]
+    "joy": EmotionStyle(
+        emoji: "😄", color: .yellow, fontSize: 28,
+        font: .custom("Dongle-Bold", size: 28),           // ✅ 존재
+        fontName: "Dongle-Bold"
+    ),
+    "sadness": EmotionStyle(
+        emoji: "😢", color: .blue, fontSize: 26,
+        font: .custom("ChosunCentennial", size: 26),      // ✅ ChosunCentennial (파일명 아님)
+        fontName: "ChosunCentennial"
+    ),
+    "anger": EmotionStyle(
+        emoji: "😡", color: .red, fontSize: 30,
+        font: .custom("Giants-Regular", size: 30),        // ✅ 존재
+        fontName: "Giants-Regular"
+    ),
+    "fear": EmotionStyle(
+        emoji: "😨", color: .purple, fontSize: 26,
+        font: .custom("Yydimibang-OTFBold", size: 26),    // ✅ 덤프에 있음 (Bold만 존재)
+        fontName: "Yydimibang-OTFBold"
+    ),
+    "surprise": EmotionStyle(
+        emoji: "😲", color: .orange, fontSize: 28,
+        font: .custom("YOnepickTTF-Regular", size: 28),
+        fontName: "YOnepickTTF-Regular"
+    ),
 
+    "curiosity": EmotionStyle(
+        emoji: "🤔", color: .green, fontSize: 24,
+        font: .custom("MarkerFelt-Wide", size: 24),
+        fontName: "MarkerFelt-Wide"
+    ),
+
+    "neutral": EmotionStyle(
+        emoji: "🙂", color: .gray, fontSize: 22,
+        font: .custom("YOnepickTTF-Regular", size: 22),   // ✅ Onepick은 이 이름이 정답
+        fontName: "YOnepickTTF-Regular"
+    )
+]

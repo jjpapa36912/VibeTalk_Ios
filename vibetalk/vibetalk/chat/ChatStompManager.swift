@@ -176,8 +176,9 @@ class ChatStompManager: ObservableObject {
 //        )
 //    }
     func sendMessage(_ result: EmotionResult) {
-        let resolvedFontName = result.fontName ?? emotionStyles[result.emotion]?.fontName ?? "YOnepick-Regular"
-        let resolvedEmoji = result.emoji ?? emotionStyles[result.emotion]?.emoji ?? "🙂"
+        let key = result.emotion.lowercased()
+        let resolvedFontName = result.fontName ?? emotionStyles[key]?.fontName ?? "YOnepick-Regular"
+        let resolvedEmoji     = result.emoji ?? emotionStyles[key]?.emoji ?? "🙂"
 
         let json: [String: Any] = [
             "chatRoomId": currentRoomId,
@@ -185,28 +186,31 @@ class ChatStompManager: ObservableObject {
             "content": result.client_text,
             "emotion": result.emotion,
             "fontName": resolvedFontName,
-            "emoji": resolvedEmoji  // ✅ 이모지 추가!
+            "emoji": resolvedEmoji
         ]
-        
-        print("📤 [STOMP] 메시지 전송: \(json)")
 
+        print("📤 [STOMP] 메시지 전송: \(json)")
         socketClient.sendJSONForDict(
             dict: json as NSDictionary,
             toDestination: "/app/chat.sendMessage/\(currentRoomId)"
         )
 
-        DispatchQueue.main.async {
-            self.messages.append(ChatMessageModel(
-                id: String(Int.random(in: 100000...999999)),   // ✅ String 변환
-                senderId: self.currentUserId,
-                senderName: "나",
-                content: result.client_text,
-                sentAt: ISO8601DateFormatter().string(from: Date()),
-                emotion: result.emotion,
-                fontName: resolvedFontName,
-                emoji: resolvedEmoji  // ✅ 메시지 목록에도 반영
-            ))
-        }
+//        // (선택) 에코 오기 전에 로컬 프리뷰를 보여주고 싶다면 아래 유지, 아니면 제거
+//        DispatchQueue.main.async {
+//            self.messages.append(
+//                ChatMessageModel(
+//                    id: UUID().uuidString,
+//                    senderId: self.currentUserId,
+//                    senderName: "나",
+//                    content: result.client_text,
+//                    sentAt: ISO8601DateFormatter().string(from: Date()),
+//                    emotion: result.emotion,
+//                    fontName: resolvedFontName,
+//                    emoji: resolvedEmoji,
+//                    source: "client"
+//                )
+//            )
+//        }
     }
 
 

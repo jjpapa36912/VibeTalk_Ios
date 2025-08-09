@@ -178,6 +178,8 @@ extension ChatWebSocketManager: WebSocketDelegate {
             guard let data = text.data(using: .utf8) else { return }
             do {
                 let decoded = try JSONDecoder().decode(ChatMessageModel.self, from: data)
+                let ready = enrichEmotionFields(decoded)     // ✅ 보강
+
                 DispatchQueue.main.async {
                     self.messages.append(decoded)
                 }
@@ -193,5 +195,12 @@ extension ChatWebSocketManager: WebSocketDelegate {
         default:
             break
         }
+    }
+    private func enrichEmotionFields(_ m: ChatMessageModel) -> ChatMessageModel {
+        var mm = m
+        let key = (m.emotion ?? "neutral").lowercased()
+        if mm.fontName == nil { mm.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
+        if mm.emoji == nil    { mm.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
+        return mm
     }
 }

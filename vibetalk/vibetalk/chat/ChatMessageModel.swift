@@ -26,54 +26,36 @@ struct ChatMessageResponse: Codable, Identifiable {
 }
 
 
-
 struct ChatBubbleView: View {
     let message: ChatMessageModel
     let isCurrentUser: Bool
-
+    
     var body: some View {
-        let key = message.emotion ?? "neutral"
-        let style = emotionStyles[key] ?? emotionStyles["neutral"]!
-
+        let key = (message.emotion ?? "neutral").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // 우선순위: message.fontName → emotionStyles → 폴백
+        let styleFontName = (message.fontName?.trimmingCharacters(in: .whitespacesAndNewlines))
+            ?? emotionStyles[key]?.fontName
+            ?? "YOnepick-Regular"
+        let emoji = message.emoji ?? emotionStyles[key]?.emoji ?? "🙂"
+        
         HStack {
             if isCurrentUser { Spacer() }
-
             VStack(alignment: isCurrentUser ? .trailing : .leading, spacing: 4) {
                 if !isCurrentUser {
                     Text(message.senderName)
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
-
-                Text("\(message.emoji ?? "") \(message.content)")
-                    .font(Font.custom(message.fontName ?? style.fontName, size: 17))
-                    .foregroundColor(isCurrentUser ? .white : .white) // 필요 시 style.textColor
-                    .padding()
-                    .background(
-                        (isCurrentUser ? Color.blue.opacity(0.85)
-                                       : style.color ?? Color.gray.opacity(0.4))
-                    )
-                    .cornerRadius(15)
-                    .frame(maxWidth: 250, alignment: isCurrentUser ? .trailing : .leading)
-
-                Text(formatTime(message.sentAt))
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+                Text("\(emoji) \(message.content)")
+                    .font(.custom(styleFontName, size: 17)) // 마지막에 단 한 번만 적용
+                    .foregroundColor(.white)
+                    .padding(10)
+                    .background(isCurrentUser ? Color.blue : Color.gray.opacity(0.6))
+                    .cornerRadius(12)
             }
-
             if !isCurrentUser { Spacer() }
         }
-        .padding(isCurrentUser ? .leading : .trailing, 40)
+        .padding(.horizontal, 6)
         .padding(.vertical, 2)
-    }
-
-    private func formatTime(_ sentAt: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: sentAt) {
-            let df = DateFormatter()
-            df.dateFormat = "HH:mm"
-            return df.string(from: date)
-        }
-        return ""
     }
 }
