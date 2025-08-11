@@ -76,6 +76,8 @@ struct ChatRoomView: View {
             .onAppear(perform: onAppearActions)
             .onDisappear(perform: onDisappearActions)
             .onReceive(wsManager.$latestEmotionResult.compactMap { $0 }) { newResult in
+                print("➡️ onReceive WS id=\(newResult.id) src=\(newResult.source) senderId=\(String(describing: newResult.senderId)) roomId=\(String(describing: newResult.roomId))")
+
                 handleIncomingEmotionResult(with: newResult)  // 여기서 uiMessages를 in-place 업데이트
             }
             // ③ STOMP 서버 메시지/이력 → 화면 소스(uiMessages)에 머지
@@ -294,6 +296,8 @@ struct ChatRoomView: View {
     
     private func onAppearActions() {
         print("👣 onAppearActions 진입. roomId=\(room.id)")
+        sentFinalIds.removeAll()   // ✅ 재입장 시 초기화
+
        
         fetchChatRoomMembers(roomId: room.id)
 
@@ -307,7 +311,7 @@ struct ChatRoomView: View {
 
         stompManager.connect(roomId: room.id, userId: currentUserId)
         markRoomAsRead(roomId: room.id)
-        wsManager.connect()  // 감정 WS는 결과만 받아서 최종 전송 트리거 용도로만 사용
+        wsManager.connect(userId: currentUserId, roomId: room.id)
     }
     
     
@@ -320,7 +324,7 @@ struct ChatRoomView: View {
     private func enrichEmotionFields(_ m: ChatMessageModel) -> ChatMessageModel {
         var mm = m
         let key = (m.emotion ?? "neutral").lowercased()
-        if mm.fontName == nil { mm.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
+        if mm.fontName == nil { mm.fontName = emotionStyles[key]?.fontName ?? "YOnepickTTF-Regular" }
         if mm.emoji == nil    { mm.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
         return mm
     }
@@ -332,90 +336,90 @@ struct ChatRoomView: View {
 
     // 파일: ChatRoomView.swift
     private func handleIncomingEmotionResult(with r: EmotionResult) {
-        // 0) OpenAI만 화면 갱신 (hubert는 무시)
-        guard r.source == "openai" else { return }
+        // 0) 필터
+        if let sid = r.senderId, sid != currentUserId { return }
+        if let rid = r.roomId, rid != room.id { return }
 
-        // 1) 스타일 보강
         var fixed = r
         if fixed.emoji == nil {
-            let key = r.emotion.lowercased()
-            fixed.emoji = emotionStyles[key]?.emoji ?? "🙂"
+            fixed.emoji = emotionStyles[fixed.emotion.lowercased()]?.emoji ?? "🙂"
         }
 
-        // 2) 덮어쓰기 대상 인덱스 찾기 (우선순위: id → pendingId → 최근 내 프리뷰)
-        var targetIndex: Int? = uiMessages.firstIndex(where: { $0.id == fixed.id })
+        // 1) id로 찾기
+        var targetIndex = uiMessages.firstIndex(where: { $0.id == fixed.id })
 
-        if targetIndex == nil, let pid = pendingMessageId {
-            targetIndex = uiMessages.firstIndex(where: { $0.id == pid })
-            if targetIndex != nil, !fixed.id.isEmpty {
-                // pending id로 찾았으면, 가능하면 id를 확정(clientMessageId)로 바꿔줌
-                let base = uiMessages[targetIndex!]
-                uiMessages[targetIndex!] = ChatMessageModel(
-                    id: fixed.id,
-                    senderId: base.senderId,
-                    senderName: base.senderName,
-                    content: base.content,
-                    sentAt: base.sentAt,
-                    emotion: base.emotion,
-                    fontName: base.fontName,
-                    emoji: base.emoji,
-                    source: base.source
-                )
-            }
-        }
-
-        if targetIndex == nil {
-            targetIndex = uiMessages.lastIndex {
-                $0.senderId == currentUserId && ($0.source == "client" || $0.source == "manual")
-            }
-        }
-
-        // 3) 대상이 있으면 덮어쓰기, 없으면 남의 메시지일 때만 추가
-        if let idx = targetIndex {
-            uiMessages[idx] = uiMessages[idx].withUpdated(
-                content: fixed.client_text,
-                emotion: fixed.emotion,
-                fontName: fixed.fontName ?? uiMessages[idx].fontName,
-                emoji: fixed.emoji ?? uiMessages[idx].emoji,
-                source: "openai"
+        // 2) pendingId로 찾기
+        if targetIndex == nil, let pid = pendingMessageId,
+           let idx = uiMessages.firstIndex(where: { $0.id == pid }) {
+            let base = uiMessages[idx]
+            uiMessages[idx] = ChatMessageModel(
+                id: fixed.id.isEmpty ? base.id : fixed.id,
+                senderId: base.senderId,
+                senderName: base.senderName,
+                content: base.content,
+                sentAt: base.sentAt,
+                emotion: base.emotion,
+                fontName: base.fontName,
+                emoji: base.emoji,
+                source: base.source
             )
-        } else {
-            // 내 메시지인데 매칭 실패하면 중복 위험 → 추가 금지
-            if fixed.senderId == currentUserId { return }
-            uiMessages.append(
-                ChatMessageModel(
-                    id: fixed.id.isEmpty ? UUID().uuidString : fixed.id,
-                    senderId: fixed.senderId ?? -1,
-                    senderName: fixed.senderName.isEmpty ? "Unknown" : fixed.senderName,
-                    content: fixed.client_text,
-                    sentAt: fixed.sentAt,
-                    emotion: fixed.emotion,
-                    fontName: fixed.fontName,
-                    emoji: fixed.emoji,
-                    source: "openai"
-                )
-            )
+            targetIndex = idx
         }
+
+        // 🔥 3) 폴백: openai 패킷에 id가 없을 때(지금 상황) → "내가 방금 보낸 같은 텍스트" 버블로 매칭
+        if targetIndex == nil && fixed.source == "openai" {
+            targetIndex = uiMessages.lastIndex(where: {
+                $0.senderId == currentUserId &&
+                $0.content == fixed.client_text
+            })
+        }
+
+        guard let i = targetIndex else {
+            // 여전히 못 찾으면 그냥 스킵 (중복 방지)
+            return
+        }
+        print("🧪 before overwrite idx=\(String(describing: targetIndex))")
+
+        // 4) in-place 덮어쓰기
+        uiMessages[i] = uiMessages[i].withUpdated(
+            content: fixed.client_text,
+            emotion: fixed.emotion,
+            fontName: fixed.fontName ?? uiMessages[i].fontName,
+            emoji: fixed.emoji ?? uiMessages[i].emoji,
+            source: fixed.source
+        )
+        print("✅ overwritten idx=\(i) id=\(uiMessages[i].id) emotion=\(fixed.emotion) src=\(fixed.source)")
 
         pendingMessageId = nil
 
-        // 4) 🔴 서버에 최종값 업서트 전송 (여기 빠져 있으면 DB에 반영 안 됨!)
-        //    동일 clientMessageId로 보내야 서버가 기존 레코드 갱신합니다.
-        let finalToSend = EmotionResult(
-            id: fixed.id,                 // == clientMessageId (필수)
-            client_text: fixed.client_text,
-            pitch: 0, volume: 0,
-            emotion: fixed.emotion,
-            confidence: fixed.confidence,
-            source: "openai",
-            fontName: fixed.fontName,
-            emoji: fixed.emoji,
-            senderId: currentUserId,
-            senderName: "Current User",
-            sentAt: fixed.sentAt
-        )
-        stompManager.sendMessage(finalToSend)
+        // 5) 최종 업서트 전송 (중복 방지) — ⚠️ 여기의 id는 "버블의 id"로
+        if fixed.source == "openai" {
+            let mergedId = uiMessages[i].id  // ← 이 id가 STOMP/DB 병합 키
+            if sentFinalIds.contains(mergedId) == false {
+                sentFinalIds.insert(mergedId)
+
+                let finalToSend = EmotionResult(
+                    id: mergedId,                          // ✅ 버블 id
+                    client_text: fixed.client_text,
+                    pitch: 0, volume: 0,
+                    emotion: fixed.emotion,
+                    confidence: fixed.confidence,
+                    source: "openai",
+                    fontName: fixed.fontName,
+                    emoji: fixed.emoji,
+                    senderId: currentUserId,
+                    senderName: "Current User",
+                    sentAt: fixed.sentAt,
+                    roomId: r.roomId
+                )
+                stompManager.sendMessage(finalToSend)
+            }
+            print("📨 stomp sent? \(fixed.source == "openai")")
+
+        }
     }
+
+
 
 
 
@@ -534,12 +538,13 @@ struct ChatRoomView: View {
     }
 
     private func sendWithFastAPI(text: String, clientMessageId: String) {
-        let url = URL(string: "\(AppConfig.baseURLFastApi)/analyze")!
+        guard let url = URL(string: "\(AppConfig.baseURLFastApi)/analyze") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
 
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept") // ✅ 보강
 
         var body = Data()
 
@@ -549,36 +554,61 @@ struct ChatRoomView: View {
             body.append("\(value)\r\n".data(using: .utf8)!)
         }
 
-        // 필드들
+        // 🔑 필드들
         appendField("text", text)
         appendField("user_id", String(currentUserId))
         appendField("room_id", String(room.id))
-        appendField("client_id", clientMessageId)   // ✅ 핵심: 임시 버블 id 전달
+        appendField("client_id", clientMessageId)
 
-        // 오디오(있으면 첨부)
+        // 🎙️ 오디오(있으면 첨부) — 실제 확장자/타입 반영
         if let audioURL = recorder.recordedFileURL,
            let audioData = try? Data(contentsOf: audioURL) {
+
+            let ext = audioURL.pathExtension.lowercased()
+            let mime: String
+            switch ext {
+            case "wav": mime = "audio/wav"
+            case "m4a": mime = "audio/m4a"
+            case "caf": mime = "audio/x-caf"
+            case "aac": mime = "audio/aac"
+            case "mp3": mime = "audio/mpeg"
+            default:    mime = "application/octet-stream"
+            }
+
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"audio\"; filename=\"recording.wav\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"audio\"; filename=\"recording.\(ext.isEmpty ? "wav" : ext)\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
             body.append(audioData)
             body.append("\r\n".data(using: .utf8)!)
+        } else {
+            // 서버가 audio를 필수(File(...))로 받는다면, 여기서 early return 하거나 사용자 알림
+            print("⚠️ [FastAPI] audio 파일이 없어 업로드가 실패할 수 있습니다.")
         }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        // (선택) 타임아웃 설정
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        let session = URLSession(configuration: config)
+
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
                 print("❌ [FastAPI] 요청 에러: \(error.localizedDescription)")
                 return
             }
-            if let code = (response as? HTTPURLResponse)?.statusCode {
-                print("📡 [FastAPI] 상태코드: \(code)")
+            if let http = response as? HTTPURLResponse {
+                print("📡 [FastAPI] 상태코드: \(http.statusCode)")
+                if http.statusCode >= 300 {
+                    let preview = String(data: data ?? Data(), encoding: .utf8) ?? "<no body>"
+                    print("⚠️ [FastAPI] 응답 바디: \(preview)")
+                }
             }
-            // 응답은 보통 "processing" → 결과는 Emotion WS로 옴
+            // ✅ 응답은 "processing"이고, 최종 결과는 Emotion WS로만 옴
         }.resume()
     }
+
 
     private func markRoomAsRead(roomId: Int) {
         guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/read"),

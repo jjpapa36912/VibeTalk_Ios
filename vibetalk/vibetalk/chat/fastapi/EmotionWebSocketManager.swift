@@ -6,12 +6,7 @@
 //
 
 import Foundation
-//
-//  EmotionWebSocketManager.swift
-//  vibetalk
-//
-//  Created by 김동준 on 8/6/25.
-//
+
 final class EmotionWebSocketManager: ObservableObject {
     @Published var latestEmotionResult: EmotionResult?
 
@@ -28,24 +23,39 @@ final class EmotionWebSocketManager: ObservableObject {
     private(set) var isConnected = false
     private var backoff: TimeInterval = 1   // 1,2,4,8.. 최대 60
 
-    func connect() {
+    // 🔑 재연결용으로 보존
+    private var lastUserId: Int?
+    private var lastRoomId: Int?
+
+    // MARK: - Connect / Disconnect
+
+    func connect(userId: Int, roomId: Int) {
         guard !isConnected else {
             print("ℹ️ [EmotionWS] already connected — skip")
             return
         }
+        lastUserId = userId
+        lastRoomId = roomId
 
-        // http -> ws, https -> wss (네가 쓰던 방식 유지)
+        // http -> ws, https -> wss
         let wsBase = AppConfig.baseURLFastApi.replacingOccurrences(of: "http", with: "ws")
-        guard let url = URL(string: "\(wsBase)/ws/emotion") else {
+
+        var comps = URLComponents(string: "\(wsBase)/ws/emotion")
+        comps?.queryItems = [
+            URLQueryItem(name: "user_id", value: String(userId)),
+            URLQueryItem(name: "room_id", value: String(roomId))
+        ]
+        guard let url = comps?.url else {
             print("❌ [EmotionWS] URL 생성 실패")
             return
         }
         print("🔌 [EmotionWS] Connect → \(url.absoluteString)")
 
-        // 이전 잔여 상태 정리
+        // 잔여 상태 정리
         reconnectWorkItem?.cancel()
         stopPing()
         webSocketTask?.cancel()
+
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
 
@@ -65,7 +75,7 @@ final class EmotionWebSocketManager: ObservableObject {
         webSocketTask = nil
     }
 
-    // MARK: - Private
+    // MARK: - Ping
 
     private func startPing() {
         stopPing()
@@ -85,6 +95,8 @@ final class EmotionWebSocketManager: ObservableObject {
         pingTimer = nil
     }
 
+    // MARK: - Receive
+
     private func receiveOnce() {
         webSocketTask?.receive { [weak self] result in
             guard let self else { return }
@@ -94,7 +106,6 @@ final class EmotionWebSocketManager: ObservableObject {
             switch result {
             case .failure(let error):
                 print("❌ [EmotionWS] receive error: \(error.localizedDescription)")
-                // 여기서 더 이상 재귀 호출하지 않음 — 끊김 처리 후 재연결 예약
                 self.handleDisconnectAndScheduleReconnect()
 
             case .success(let message):
@@ -102,7 +113,12 @@ final class EmotionWebSocketManager: ObservableObject {
                 case .string(let text):
                     self.handleString(text)
                 case .data(let data):
-                    print("ℹ️ [EmotionWS] binary ignored (\(data.count) bytes)")
+                    // 일부 환경에서 binary로 올 수도 있으니 방어적으로 문자열 변환 시도
+                    if let text = String(data: data, encoding: .utf8) {
+                        self.handleString(text)
+                    } else {
+                        print("ℹ️ [EmotionWS] binary ignored (\(data.count) bytes)")
+                    }
                 @unknown default:
                     break
                 }
@@ -113,30 +129,63 @@ final class EmotionWebSocketManager: ObservableObject {
     }
 
     private func handleString(_ text: String) {
+        print("🌐 WS raw: \(text)")
+
         guard let data = text.data(using: .utf8) else { return }
+
+        // 1) 풀 포맷(EmotionResult) 우선
+        if var full = try? JSONDecoder().decode(EmotionResult.self, from: data) {
+            let normalized = normalizeEmotion(full.emotion)
+            // senderId/roomId가 비어있으면 마지막 연결 정보로 보강
+            full = EmotionResult(
+                id: full.id,
+                client_text: full.client_text,
+                pitch: full.pitch,
+                volume: full.volume,
+                emotion: normalized,
+                confidence: full.confidence,
+                source: full.source,
+                fontName: full.fontName,
+                emoji: full.emoji,
+                senderId: full.senderId ?? lastUserId,     // 🔥 보강
+                senderName: full.senderName,
+                sentAt: full.sentAt,
+                roomId: full.roomId ?? lastRoomId          // 🔥 보강
+            )
+            print("✅ WS decode(full) → id=\(full.id), src=\(full.source), sid=\(String(describing: full.senderId)), rid=\(String(describing: full.roomId))")
+            DispatchQueue.main.async { self.latestEmotionResult = full }
+            return
+        }
+
+        // 2) 폴백: 간소 포맷(DecodableEmotionResult) → EmotionResult 변환
         do {
             let d = try JSONDecoder().decode(DecodableEmotionResult.self, from: data)
             let normalized = normalizeEmotion(d.emotion)
-            let style = emotionStyles[normalized] ?? emotionStyles["neutral"]!
-            let enriched = EmotionResult(
-                id: UUID().uuidString,
+
+            let result = EmotionResult(
+                id: UUID().uuidString,               // 서버가 id를 안 보낼 때 임시
                 client_text: d.client_text,
                 pitch: d.pitch,
                 volume: d.volume,
                 emotion: normalized,
                 confidence: d.confidence,
-                source: d.source,         // "hubert" | "openai"
-                fontName: style.fontName,
-                emoji: style.emoji,
-                senderId: nil,
+                source: d.source,                    // "hubert" | "openai"
+                fontName: nil,
+                emoji: nil,
+                senderId: lastUserId,                // 🔥 내가 연결 때 넘긴 userId
                 senderName: "Analyzer",
-                sentAt: ISO8601DateFormatter().string(from: Date())
+                sentAt: ISO8601DateFormatter().string(from: Date()),
+                roomId: lastRoomId                   // 🔥 내가 연결 때 넘긴 roomId
             )
-            DispatchQueue.main.async { self.latestEmotionResult = enriched }
+            print("✅ WS decode(fallback) → id=\(result.id), src=\(result.source), sid=\(String(describing: result.senderId)), rid=\(String(describing: result.roomId))")
+            DispatchQueue.main.async { self.latestEmotionResult = result }
         } catch {
             print("❌ [EmotionWS] decode failed: \(error)\nRAW: \(text)")
         }
     }
+
+
+    // MARK: - Reconnect
 
     private func handleDisconnectAndScheduleReconnect() {
         guard isConnected else { return } // 중복 처리 방지
@@ -146,26 +195,30 @@ final class EmotionWebSocketManager: ObservableObject {
         webSocketTask = nil
 
         reconnectWorkItem?.cancel()
+        let delay = backoff
+        backoff = min(backoff * 2, 60)
+
         let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self,
+                  let uid = self.lastUserId,
+                  let rid = self.lastRoomId else { return }
             print("🔁 [EmotionWS] reconnecting...")
-            self.connect()
-            self.backoff = min(self.backoff * 2, 60)
+            self.connect(userId: uid, roomId: rid)
         }
         reconnectWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + backoff, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 }
 
-// 서버 라벨 → 앱 내부 라벨 매핑
+// 서버 라벨 → 앱 내부 라벨 매핑 (emotionStyles 키와 1:1)
 private func normalizeEmotion(_ raw: String) -> String {
     switch raw.lowercased() {
-    case "sadness": return "sad"
     case "joy", "happy": return "joy"
+    case "sad", "sadness": return "sadness"   // ← styles에 "sadness" 키 사용
     case "anger", "angry": return "anger"
     case "fear": return "fear"
     case "surprise": return "surprise"
     case "curiosity": return "curiosity"
-    default: return raw.lowercased()
+    default: return "neutral"                 // 알 수 없으면 neutral
     }
 }
