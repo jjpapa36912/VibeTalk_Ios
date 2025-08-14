@@ -3,21 +3,10 @@ import Foundation
 
 // 서버에서 가져오는 채팅방 목록 모델
 struct ChatRoomListItem: Identifiable, Codable, Hashable {
-
     let id: Int
     let roomName: String
     let createdBy: String?
     let createdAt: String?
-    //    let id: Int
-//    let roomName: String
-//    let createdBy: String?
-//    let createdAt: String?
-//    
-//    // 미래 확장을 위해 추가 (현재 응답에 없으므로 자동 무시됨)
-//    let lastMessage: String?
-//    let lastMessageTime: String?
-//    let unreadCount: Int?
-//    let participants: [ChatParticipant]?
 }
 
 struct ChatParticipant: Codable, Hashable {
@@ -25,121 +14,121 @@ struct ChatParticipant: Codable, Hashable {
     let name: String
 }
 
-// 기존 ChatRoomResponse와 동일하게 맞춤
+// 기존 ChatRoomResponse와 동일
 struct ChatRoomResponse: Identifiable, Codable, Hashable {
     let id: Int
     let roomName: String
 }
 
-// MARK: - ChatRoomListView
-
+// MARK: - ChatRoomListView (리뉴얼)
 struct ChatRoomListView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = ChatRoomListViewModel()
-    @State private var isShowingCreateRoom = false   // ✅ Sheet 제어
     let currentUserId: Int
-    
+
     var body: some View {
         NavigationStack(path: $appState.path) {
-            VStack {
-//                List(viewModel.chatRooms) { room in
-//                    NavigationLink(value: room) {
-//                        roomRow(room)
-//                    }
-//                }
-                List(viewModel.chatRooms) { room in
-                    NavigationLink(value: ChatRoomResponse(id: room.id, roomName: room.roomName)) {
-                        roomRow(room)
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(viewModel.chatRooms) { room in
+                        NavigationLink(value: ChatRoomResponse(id: room.id, roomName: room.roomName)) {
+                            ChatRoomRowCard(room: room)
+                        }
+                        .buttonStyle(.plain) // 링크 눌렀을 때 하이라이트 안 보이게
                     }
                 }
-
-//                .navigationDestination(for: ChatRoomListItem.self) { room in
-//                    ChatRoomView(
-//                        room: ChatRoomResponse(id: room.id, roomName: room.roomName),
-//                        currentUserId: currentUserId
-//                    )
-//                    .environmentObject(appState)
-//                }
-                .navigationDestination(for: ChatRoomResponse.self) { room in
-                    ChatRoomView(
-                        room: room,
-                        currentUserId: currentUserId
-                    )
-                    .environmentObject(appState)
-                }
-                
-                Button(action: {
-                    print("📌 새 그룹 채팅 만들기 클릭")
-                    isShowingCreateRoom = true
-                }) {
-                    Label("새 그룹 채팅 만들기", systemImage: "bubble.left.and.bubble.right.fill")
-                        .font(.headline)
-                        .padding()
-                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
-            .navigationTitle("채팅방")
+            .background(Color(.systemBackground))
+            .navigationTitle("채팅")
+            .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 viewModel.fetchChatRooms()
                 viewModel.fetchFriends()
             }
-            // ✅ Modal Sheet 추가
-            .sheet(isPresented: $isShowingCreateRoom) {
-                CreateChatRoomView(
-                    friends: viewModel.friends,
-//                    currentUserId: currentUserId,
-                    onRoomCreated: { room in
-                        isShowingCreateRoom = false
-                        viewModel.fetchChatRooms()       // ✅ 목록 즉시 갱신
-
-//                        appState.path.append(room)
-                        // ✅ 수정된 코드
-                        let response = ChatRoomResponse(id: room.id, roomName: room.roomName)
-                        appState.path.append(response)
-                        
-                    }
-                )
-                .environmentObject(appState)
+            .refreshable {        // 아래로 당겨 새로고침
+                viewModel.fetchChatRooms()
             }
+            // 🔕 툴바/로그아웃 버튼 없음
         }
     }
-    
-    private func roomRow(_ room: ChatRoomListItem) -> some View {
+}
+
+// MARK: - 카드형 셀
+struct ChatRoomRowCard: View {
+    let room: ChatRoomListItem
+
+    var body: some View {
         HStack(spacing: 12) {
-            // 기본 아이콘
-            Image(systemName: "person.3.fill")
-                .resizable()
-                .frame(width: 30, height: 30)
-                .foregroundColor(.blue)
-            
+            // 아이콘 배지
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.85), Color.purple.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 44, height: 44)
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(room.roomName)
-                    .font(.headline)
-                
-                if let createdBy = room.createdBy {
-                    Text("방장: \(createdBy)")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    if let createdBy = room.createdBy, !createdBy.isEmpty {
+                        Text("방장 \(createdBy)")
+                    }
+                    if let createdAt = room.createdAt, let pretty = formatTime(createdAt) {
+                        Text(pretty)
+                    }
                 }
-                
-                if let createdAt = room.createdAt {
-                    Text("생성일: \(formatTime(createdAt))")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
+
             Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06))
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
     }
 
-    
-    private func formatTime(_ isoString: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: isoString) {
-            let output = DateFormatter()
-            output.dateFormat = "HH:mm"
-            return output.string(from: date)
+    // “HH:mm” 대신 상대시간 표기 (오늘은 시간만, 하루 이상은 날짜)
+    private func formatTime(_ isoString: String) -> String? {
+        let iso = ISO8601DateFormatter()
+        guard let date = iso.date(from: isoString) else { return nil }
+
+        let cal = Calendar.current
+        if cal.isDateInToday(date) {
+            let f = DateFormatter()
+            f.dateFormat = "HH:mm"
+            return f.string(from: date)
+        } else {
+            let f = DateFormatter()
+            f.dateFormat = "M월 d일"
+            return f.string(from: date)
         }
-        return ""
     }
 }

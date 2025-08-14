@@ -238,25 +238,25 @@ class ChatStompManager: ObservableObject {
         let resolvedFontName = result.fontName ?? emotionStyles[key]?.fontName ?? "YOnepick-Regular"
         let resolvedEmoji     = result.emoji ?? emotionStyles[key]?.emoji ?? "🙂"
 
-        // ✅ 서버 DTO가 기대하는 키 이름 유지: chatRoomId / senderId / content
         let json: [String: Any] = [
-            "chatRoomId": currentRoomId,         // ❗️roomId 말고 chatRoomId
+            "chatRoomId": currentRoomId,
             "senderId": currentUserId,
-            "content": result.client_text,
-            "clientMessageId": result.id,        // 🔑 추가
-            "sentAt": result.sentAt,             // (선택) 서버가 무시해도 OK
-            "emotion": result.emotion,           // (옵션) 없으면 서버에서 null
+            "content": result.client_text,     // style이면 변환문이 들어감
+            "clientMessageId": result.id,
+            "sentAt": result.sentAt,
+            "emotion": result.emotion,
             "fontName": resolvedFontName,
-            "emoji": resolvedEmoji
+            "emoji": resolvedEmoji,
+            "source": result.source            // ✅ 추가
         ]
 
         print("📤 [STOMP] 메시지 전송: \(json)")
-        // ✅ 원래 잘되던 방식 유지
         socketClient.sendJSONForDict(
             dict: json as NSDictionary,
             toDestination: "/app/chat.sendMessage/\(currentRoomId)"
         )
     }
+
 
 
 

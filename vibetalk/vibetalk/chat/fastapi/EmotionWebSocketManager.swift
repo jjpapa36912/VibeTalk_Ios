@@ -134,54 +134,63 @@ final class EmotionWebSocketManager: ObservableObject {
         guard let data = text.data(using: .utf8) else { return }
 
         // 1) 풀 포맷(EmotionResult) 우선
-        if var full = try? JSONDecoder().decode(EmotionResult.self, from: data) {
-            let normalized = normalizeEmotion(full.emotion)
-            // senderId/roomId가 비어있으면 마지막 연결 정보로 보강
-            full = EmotionResult(
-                id: full.id,
-                client_text: full.client_text,
-                pitch: full.pitch,
-                volume: full.volume,
+        if let decoded = try? JSONDecoder().decode(EmotionResult.self, from: data) {
+            let normalized = normalizeEmotion(decoded.emotion)
+
+            let normalizedFull = EmotionResult(
+                id: decoded.id,
+                client_text: decoded.client_text,
+                pitch: decoded.pitch,
+                volume: decoded.volume,
                 emotion: normalized,
-                confidence: full.confidence,
-                source: full.source,
-                fontName: full.fontName,
-                emoji: full.emoji,
-                senderId: full.senderId ?? lastUserId,     // 🔥 보강
-                senderName: full.senderName,
-                sentAt: full.sentAt,
-                roomId: full.roomId ?? lastRoomId          // 🔥 보강
+                confidence: decoded.confidence,
+                source: decoded.source,
+                fontName: decoded.fontName,
+                emoji: decoded.emoji,
+                senderId: decoded.senderId ?? lastUserId,
+                senderName: decoded.senderName,
+                sentAt: decoded.sentAt,
+                roomId: decoded.roomId ?? lastRoomId,
+                // ✅ 반드시 포함!
+                transformed_text: decoded.transformed_text,
+                styleName: decoded.styleName
             )
-            print("✅ WS decode(full) → id=\(full.id), src=\(full.source), sid=\(String(describing: full.senderId)), rid=\(String(describing: full.roomId))")
-            DispatchQueue.main.async { self.latestEmotionResult = full }
+
+            print("✅ WS decode(full) → id=\(normalizedFull.id), src=\(normalizedFull.source), transformed=\(normalizedFull.transformed_text ?? "<nil>")")
+            DispatchQueue.main.async { self.latestEmotionResult = normalizedFull }
             return
         }
 
+
         // 2) 폴백: 간소 포맷(DecodableEmotionResult) → EmotionResult 변환
+        // FALLBACK 경로
         do {
             let d = try JSONDecoder().decode(DecodableEmotionResult.self, from: data)
             let normalized = normalizeEmotion(d.emotion)
 
             let result = EmotionResult(
-                id: UUID().uuidString,               // 서버가 id를 안 보낼 때 임시
+                id: UUID().uuidString,
                 client_text: d.client_text,
                 pitch: d.pitch,
                 volume: d.volume,
                 emotion: normalized,
                 confidence: d.confidence,
-                source: d.source,                    // "hubert" | "openai"
+                source: d.source,
                 fontName: nil,
                 emoji: nil,
-                senderId: lastUserId,                // 🔥 내가 연결 때 넘긴 userId
+                senderId: lastUserId,
                 senderName: "Analyzer",
                 sentAt: ISO8601DateFormatter().string(from: Date()),
-                roomId: lastRoomId                   // 🔥 내가 연결 때 넘긴 roomId
+                roomId: lastRoomId,
+                transformed_text: d.transformed_text ?? d.transformedText,     // ✅
+                styleName: d.styleName ?? d.style_name                         // ✅
             )
-            print("✅ WS decode(fallback) → id=\(result.id), src=\(result.source), sid=\(String(describing: result.senderId)), rid=\(String(describing: result.roomId))")
             DispatchQueue.main.async { self.latestEmotionResult = result }
+            return
         } catch {
             print("❌ [EmotionWS] decode failed: \(error)\nRAW: \(text)")
         }
+
     }
 
 

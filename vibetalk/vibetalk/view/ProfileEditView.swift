@@ -7,14 +7,17 @@ struct ProfileEditView: View {
     @State private var showImagePicker = false
     @State private var isSaving = false
     @State private var isLoading = true
+    @ObservedObject var viewModel: MainViewModel   // ✅ 추가
+
 
     
     let currentProfile: UserProfile
-    
-    init(currentProfile: UserProfile) {
-        _statusMessage = State(initialValue: currentProfile.statusMessage ?? "")
-        self.currentProfile = currentProfile
-    }
+
+        init(currentProfile: UserProfile, viewModel: MainViewModel) {
+            _statusMessage = State(initialValue: currentProfile.statusMessage ?? "")
+            self.currentProfile = currentProfile
+            self.viewModel = viewModel
+        }
     
     var body: some View {
             VStack(spacing: 20) {
@@ -136,24 +139,24 @@ struct ProfileEditView: View {
     private func saveProfile() {
         guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/me/update"),
               let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-        
+
         isSaving = true
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
+
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
+
         var body = Data()
-        
-        // 상태 메시지 추가
+
+        // 상태 메시지
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"statusMessage\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(statusMessage)\r\n".data(using: .utf8)!)
-        
-        // 이미지 추가
+
+        // 이미지
         if let image = selectedImage, let imageData = image.jpegData(compressionQuality: 0.8) {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"profileImage\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
@@ -161,40 +164,32 @@ struct ProfileEditView: View {
             body.append(imageData)
             body.append("\r\n".data(using: .utf8)!)
         }
-        
+
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
+
         URLSession.shared.uploadTask(with: request, from: body) { responseData, response, error in
             DispatchQueue.main.async {
                 isSaving = false
-                
-                // 🔹 네트워크 에러 출력
+
                 if let error = error {
                     print("❌ 요청 에러:", error.localizedDescription)
                 }
-                
-                // 🔹 HTTP 응답 코드 출력
+
                 if let httpResponse = response as? HTTPURLResponse {
                     print("📡 응답 코드:", httpResponse.statusCode)
-                    print("📋 응답 헤더:", httpResponse.allHeaderFields)
                 }
-                
-                // 🔹 서버에서 보낸 원본 데이터 출력
+
                 if let data = responseData {
-                    if let jsonString = String(data: data, encoding: .utf8) {
-                        print("✅ 서버 응답 데이터:", jsonString)
-                    } else {
-                        print("⚠️ 서버 응답 데이터(디코딩 실패): \(data)")
-                    }
-                } else {
-                    print("⚠️ 서버로부터 데이터가 없습니다.")
+                    print("✅ 서버 응답:", String(data: data, encoding: .utf8) ?? "디코딩 실패")
                 }
-                
-                // ✅ 정상 동작 시 메인 화면 갱신
-                NotificationCenter.default.post(name: Notification.Name("profileUpdated"), object: nil)
+
+                // ✅ 메인 화면 데이터 갱신
+                viewModel.fetchUserProfile()
+                viewModel.syncContacts()
+
                 dismiss()
             }
         }.resume()
-
     }
+
 }

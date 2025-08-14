@@ -50,9 +50,12 @@ struct FriendTabView: View {
                 }
                 
                 // 설정 버튼
-                NavigationLink(destination: ProfileEditView(
-                    currentProfile: viewModel.userProfile ?? UserProfile(id: 0, name: "", statusMessage: nil, profileImageUrl: nil)
-                )) {
+                NavigationLink(
+                    destination: ProfileEditView(
+                        currentProfile: viewModel.userProfile ?? UserProfile(id: 0, name: "", statusMessage: nil, profileImageUrl: nil),
+                        viewModel: viewModel  // ✅ 뷰모델 주입
+                    )
+                )  {
                     Image(systemName: "gearshape.fill")
                 }
             }
@@ -94,6 +97,9 @@ struct FriendTabView: View {
                 }
             ).environmentObject(appState)
         }
-        
+        .onAppear {
+            viewModel.fetchUserProfile()
+            viewModel.syncContacts()
+        }
     }
 }

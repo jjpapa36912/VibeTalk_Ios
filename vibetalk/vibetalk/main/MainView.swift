@@ -77,6 +77,7 @@ struct ProfileHeaderView: View {
     let friends: [FriendResponse]
     @StateObject private var viewModel = MainViewModel()
 
+
     let currentUserId: Int
     @EnvironmentObject var appState: AppState   // ✅ 추가
 
@@ -137,7 +138,8 @@ struct ProfileHeaderView: View {
                             name: "",
                             statusMessage: "",
                             profileImageUrl: nil
-                        )
+                        ),
+                        viewModel: viewModel   // ✅ MainViewModel 전달
                     )
                 ) {
                     Image(systemName: "gearshape.fill")
