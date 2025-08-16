@@ -7,6 +7,8 @@ struct ChatRoomListItem: Identifiable, Codable, Hashable {
     let roomName: String
     let createdBy: String?
     let createdAt: String?
+    let mode: String?     // ✅ 추가
+
 }
 
 struct ChatParticipant: Codable, Hashable {
@@ -14,13 +16,56 @@ struct ChatParticipant: Codable, Hashable {
     let name: String
 }
 
-// 기존 ChatRoomResponse와 동일
+import Foundation
+
+import Foundation
+
+// ChatRoomResponse.swift
+// 서버 응답과 통일: 이 모델 하나로 통일해서 사용
 struct ChatRoomResponse: Identifiable, Codable, Hashable {
     let id: Int
     let roomName: String
+    let mode: String?          // "dialect" | "fun" | "formal" | "random" | null
+    let createdBy: Int?        // 서버가 숫자 ID로 내려오는 경우가 있어 Int? 로
+    let createdAt: String?     // ISO-8601 문자열
+
+    var roomMode: ChatRoomMode { ChatRoomMode.from(raw: mode) }
+
+    // 편의 생성자 (로컬 생성 시)
+    init(id: Int, roomName: String, mode: ChatRoomMode = .random, createdBy: Int? = nil, createdAt: String? = nil) {
+        self.id = id
+        self.roomName = roomName
+        self.mode = mode.rawValue
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+    }
+}
+extension ChatRoomResponse {
+    func withMode(_ newMode: ChatRoomMode) -> ChatRoomResponse {
+        return ChatRoomResponse(
+            id: self.id,
+            roomName: self.roomName,
+            mode: newMode,
+            createdBy: self.createdBy,
+            createdAt: self.createdAt
+        )
+    }
 }
 
-// MARK: - ChatRoomListView (리뉴얼)
+//// 편의 init & 보정 유틸
+//extension ChatRoomResponse {
+//    init(id: Int, roomName: String, mode: ChatRoomMode = .random) {
+//        self.id = id
+//        self.roomName = roomName
+//        self.mode = mode.rawValue
+//    }
+//    func withMode(_ mode: ChatRoomMode) -> ChatRoomResponse {
+//        ChatRoomResponse(id: id, roomName: roomName, mode: mode)
+//    }
+//}
+
+import SwiftUI
+
 struct ChatRoomListView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = ChatRoomListViewModel()
@@ -31,10 +76,10 @@ struct ChatRoomListView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.chatRooms) { room in
-                        NavigationLink(value: ChatRoomResponse(id: room.id, roomName: room.roomName)) {
+                        NavigationLink(value: room) {
                             ChatRoomRowCard(room: room)
                         }
-                        .buttonStyle(.plain) // 링크 눌렀을 때 하이라이트 안 보이게
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -48,21 +93,26 @@ struct ChatRoomListView: View {
                 viewModel.fetchChatRooms()
                 viewModel.fetchFriends()
             }
-            .refreshable {        // 아래로 당겨 새로고침
+            .refreshable {
                 viewModel.fetchChatRooms()
             }
-            // 🔕 툴바/로그아웃 버튼 없음
+            .navigationDestination(for: ChatRoomResponse.self) { room in
+                ChatRoomView(
+                    room: room,
+                    currentUserId: currentUserId
+                )
+                .environmentObject(appState)
+            }
         }
     }
 }
 
-// MARK: - 카드형 셀
 struct ChatRoomRowCard: View {
-    let room: ChatRoomListItem
+    let room: ChatRoomResponse
 
     var body: some View {
         HStack(spacing: 12) {
-            // 아이콘 배지
+            // 아이콘
             ZStack {
                 Circle()
                     .fill(
@@ -79,14 +129,22 @@ struct ChatRoomRowCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(room.roomName)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(room.roomName)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    // 모드 뱃지(선택)
+                    Text(room.roomMode.displayName)
+                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.15))
+                        .clipShape(Capsule())
+                }
 
                 HStack(spacing: 6) {
-                    if let createdBy = room.createdBy, !createdBy.isEmpty {
-                        Text("방장 \(createdBy)")
+                    if let createdBy = room.createdBy {
+                        Text("방장 #\(createdBy)")
                     }
                     if let createdAt = room.createdAt, let pretty = formatTime(createdAt) {
                         Text(pretty)
@@ -115,20 +173,33 @@ struct ChatRoomRowCard: View {
         .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
     }
 
-    // “HH:mm” 대신 상대시간 표기 (오늘은 시간만, 하루 이상은 날짜)
     private func formatTime(_ isoString: String) -> String? {
         let iso = ISO8601DateFormatter()
         guard let date = iso.date(from: isoString) else { return nil }
 
         let cal = Calendar.current
         if cal.isDateInToday(date) {
-            let f = DateFormatter()
-            f.dateFormat = "HH:mm"
+            let f = DateFormatter(); f.dateFormat = "HH:mm"
             return f.string(from: date)
         } else {
-            let f = DateFormatter()
-            f.dateFormat = "M월 d일"
+            let f = DateFormatter(); f.dateFormat = "M월 d일"
             return f.string(from: date)
         }
+    }
+}
+
+enum RoomModeCache {
+    static let key = "roomModeCache"
+
+    static func set(id: Int, mode: ChatRoomMode) {
+        var dict = (UserDefaults.standard.dictionary(forKey: key) as? [String:String]) ?? [:]
+        dict["\(id)"] = mode.rawValue
+        UserDefaults.standard.set(dict, forKey: key)
+    }
+
+    static func get(id: Int) -> ChatRoomMode? {
+        let dict = (UserDefaults.standard.dictionary(forKey: key) as? [String:String]) ?? [:]
+        if let raw = dict["\(id)"] { return ChatRoomMode.from(raw: raw) }
+        return nil
     }
 }

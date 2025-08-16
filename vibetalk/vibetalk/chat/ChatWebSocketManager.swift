@@ -4,112 +4,66 @@ import Starscream
 // MARK: - ChatMessageModel
 
 struct ChatMessageModel: Identifiable, Codable, Equatable {
-    /// 서버/클라 모두 처리하기 위해 String으로 통일 (서버가 Int 보내면 디코더에서 String 변환)
+    /// 서버/클라 호환을 위해 String id (clientMessageId 우선)
     let id: String
     let senderId: Int
     let senderName: String
     let content: String
     let sentAt: String
-
-    // 확장(옵셔널)
-    var emotion: String?
-    var fontName: String?
-    var emoji: String?
-    var source: String?
+    var source: String? // "client" | "server" | "style" 등
 
     enum CodingKeys: String, CodingKey {
-        case id, senderId, senderName, content, sentAt, emotion, fontName, emoji, source
+        case id, senderId, senderName, content, sentAt, source
     }
 
-    // 서버가 id를 Int로 보낼 때도 처리
+    // 서버가 id를 Int로 보낼 가능성 대비
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-
         if let s = try? c.decode(String.self, forKey: .id) {
             self.id = s
-        } else if let n = try? c.decode(Int.self, forKey: .id) {
-            self.id = String(n)
+        } else if let i = try? c.decode(Int.self, forKey: .id) {
+            self.id = String(i)
         } else {
             self.id = UUID().uuidString
         }
-
-        self.senderId   = try c.decode(Int.self,    forKey: .senderId)
+        self.senderId = try c.decode(Int.self, forKey: .senderId)
         self.senderName = try c.decode(String.self, forKey: .senderName)
-        self.content    = try c.decode(String.self, forKey: .content)
-        self.sentAt     = try c.decode(String.self, forKey: .sentAt)
-        self.emotion    = try? c.decode(String.self, forKey: .emotion)
-        self.fontName   = try? c.decode(String.self, forKey: .fontName)
-        self.emoji      = try? c.decode(String.self, forKey: .emoji)
-        self.source     = try? c.decode(String.self, forKey: .source)
+        self.content = try c.decode(String.self, forKey: .content)
+        self.sentAt = try c.decode(String.self, forKey: .sentAt)
+        self.source = try? c.decode(String.self, forKey: .source)
     }
 
-    /// 로컬에서 생성할 때 쓰는 편의 생성자
-    init(
-        id: String,
-        senderId: Int,
-        senderName: String,
-        content: String,
-        sentAt: String,
-        emotion: String? = nil,
-        fontName: String? = nil,
-        emoji: String? = nil,
-        source: String? = nil
-    ) {
+    init(id: String, senderId: Int, senderName: String, content: String, sentAt: String, source: String? = nil) {
         self.id = id
         self.senderId = senderId
         self.senderName = senderName
         self.content = content
         self.sentAt = sentAt
-        self.emotion = emotion
-        self.fontName = fontName
-        self.emoji = emoji
         self.source = source
     }
-}
 
+    func withUpdated(content: String? = nil, source: String? = nil) -> ChatMessageModel {
+        ChatMessageModel(
+            id: self.id,
+            senderId: self.senderId,
+            senderName: self.senderName,
+            content: content ?? self.content,
+            sentAt: self.sentAt,
+            source: source ?? self.source
+        )
+    }
+}
 // 서버 DTO -> 뷰 모델 변환 (초기 이력 로딩 등에 사용)
 extension ChatMessageModel {
-    func withUpdated(content: String,
-                         emotion: String?,
-                         fontName: String?,
-                         emoji: String?,
-                         source: String?) -> ChatMessageModel {
-            ChatMessageModel(
-                id: self.id,                 // 🔒 id 유지 → 같은 셀 재사용
-                senderId: self.senderId,
-                senderName: self.senderName,
-                content: content,
-                sentAt: self.sentAt, emotion: emotion ?? self.emotion,
-                fontName: fontName ?? self.fontName,
-                emoji: emoji ?? self.emoji,
-                source: source ?? self.source
-            )
-        }
-    // ChatMessageModel.swift - 기존 init(from r:) 교체
     init(from r: ChatMessageResponse) {
-        // ✅ clientMessageId가 있으면 그걸 id로 사용
-        if let cmid = r.clientMessageId, !cmid.isEmpty {
-            self.id = cmid
-        } else {
-            self.id = String(r.id)
-        }
+        self.id = r.clientMessageId?.isEmpty == false ? r.clientMessageId! : String(r.id)
         self.senderId = r.senderId
         self.senderName = r.senderName
         self.content = r.content
         self.sentAt = r.sentAt
-        self.emotion = r.emotion
-        self.fontName = r.fontName
-        self.emoji = r.emoji
-        self.source = "server"
-
-        // 보강
-        let key = (r.emotion ?? "neutral").lowercased()
-        if self.fontName == nil { self.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
-        if self.emoji == nil    { self.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
+        self.source = r.source ?? "server"
     }
-
 }
-
 
 // MARK: - ChatWebSocketManager (Starscream)
 
@@ -168,16 +122,15 @@ final class ChatWebSocketManager: ObservableObject {
 
         // ✅ 프리뷰도 같은 id 사용 (result.id)
         let msg = ChatMessageModel(
-            id: result.id,                    // 🔑 여기! UUID 새로 만들지 말고 result.id
+            id: result.id,
             senderId: currentUserId,
             senderName: "나",
             content: result.client_text,
             sentAt: result.sentAt,
-            emotion: result.emotion,
-            fontName: resolvedFontName,
-            emoji: result.emoji,
             source: "client"
         )
+
+
 
         DispatchQueue.main.async {
             self.upsertIncoming(msg)          // 아래 3)에서 추가
@@ -200,7 +153,6 @@ extension ChatWebSocketManager: WebSocketDelegate {
                 guard let data = text.data(using: .utf8) else { return }
                 do {
                     var decoded = try JSONDecoder().decode(ChatMessageModel.self, from: data)
-                    decoded = enrichEmotionFields(decoded)
 
                     
                 } catch {
@@ -216,13 +168,7 @@ extension ChatWebSocketManager: WebSocketDelegate {
             break
         }
     }
-    private func enrichEmotionFields(_ m: ChatMessageModel) -> ChatMessageModel {
-        var mm = m
-        let key = (m.emotion ?? "neutral").lowercased()
-        if mm.fontName == nil { mm.fontName = emotionStyles[key]?.fontName ?? "YOnepick-Regular" }
-        if mm.emoji == nil    { mm.emoji    = emotionStyles[key]?.emoji    ?? "🙂" }
-        return mm
-    }
+    
     // ChatWebSocketManager 내부
     private func upsertIncoming(_ m: ChatMessageModel) {
         if let i = messages.firstIndex(where: { $0.id == m.id }) {

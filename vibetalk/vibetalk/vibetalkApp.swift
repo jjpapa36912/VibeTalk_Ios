@@ -22,6 +22,7 @@ struct vibetalkApp: App {
                             print("🔔 푸시 클릭 → 채팅방 열기: \(roomId)")
                             appState.selectedTab = 1
                             appState.path.append(ChatRoomResponse(id: roomId, roomName: "알림으로 열림"))
+
                         }
                     }
             } else {

@@ -18,92 +18,89 @@ struct CreateChatRoomRequest: Codable {
 //    let roomName: String
 //}
 
-class ChatService {
+//
+//  ChatService.swift
+//  vibetalk
+//
+//  Created by 김동준 on 8/1/25.
+//
+
+
+final class ChatService {
     static let shared = ChatService()
 
-//    func createChatRoom(userIds: [Int], creatorId: Int, roomName: String,
-//                        completion: @escaping (Result<ChatRoomResponse, Error>) -> Void) {
-//
-//        guard let url = URL(string: "\(AppConfig.baseURL)/api/chat/rooms"),
-//              let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-//            print("❌ [ChatService] URL 또는 토큰 없음")
-//            return
-//        }
-//
-//        var request = URLRequest(url: url)
-//        request.httpMethod = "POST"
-//        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-//        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-//
-//        let body: [String: Any] = [
-//            "userIds": userIds,
-//            "creatorId": creatorId,
-//            "roomName": roomName
-//        ]
-//
-//        do {
-//            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-//            print("📤 [ChatService] Request Body: \(body)")
-//        } catch {
-//            print("❌ [ChatService] JSON 직렬화 실패: \(error)")
-//            return
-//        }
-//
-//        URLSession.shared.dataTask(with: request) { data, response, error in
-//            if let error = error {
-//                print("❌ [ChatService] 네트워크 오류: \(error)")
-//                completion(.failure(error))
-//                return
-//            }
-//
-//            if let httpResponse = response as? HTTPURLResponse {
-//                print("📡 [ChatService] 서버 응답 코드: \(httpResponse.statusCode)")
-//            }
-//
-//            guard let data = data else {
-//                print("❌ [ChatService] 응답 데이터 없음")
-//                completion(.failure(NSError(domain: "", code: -1)))
-//                return
-//            }
-//
-//            print("📦 [ChatService] 서버 응답 원문: \(String(data: data, encoding: .utf8) ?? "데이터 없음")")
-//
-//            do {
-//                let decoded = try JSONDecoder().decode(ChatRoomResponse.self, from: data)
-//                print("✅ [ChatService] 디코딩 성공: \(decoded)")
-//                completion(.success(decoded))
-//            } catch {
-//                print("❌ [ChatService] 디코딩 실패: \(error)")
-//                completion(.failure(error))
-//            }
-//        }.resume()
-//    }
-    func createChatRoom(memberIds: [Int], roomName: String, completion: @escaping (Result<ChatRoomResponse, Error>) -> Void) {
-        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-        var request = URLRequest(url: URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms")!)
+    func createChatRoom(
+        memberIds: [Int],
+        roomName: String,
+        mode: ChatRoomMode,
+        completion: @escaping (Result<ChatRoomResponse, Error>) -> Void
+    ) {
+        let reqId = UUID().uuidString.prefix(8)
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
+            let err = NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "JWT 없음"])
+            print("🟥 [\(reqId)] createRoom: \(err.localizedDescription)")
+            completion(.failure(err)); return
+        }
+
+        let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms")!
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
+        // 서버 스펙에 따라 "memberIds" vs "userIds" 확인 필요!
         let body: [String: Any] = [
             "memberIds": memberIds,
-            "roomName": roomName
+            "roomName": roomName,
+            "mode": mode.rawValue
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
+        print("🟦 [\(reqId)] POST \(url.absoluteString)")
+        print("     headers: Authorization=Bearer <redacted>")
+        print("     body  : \(prettyJSON(body))")
+
+        let started = Date()
         URLSession.shared.dataTask(with: request) { data, response, error in
+            let elapsed = String(format: "%.2fs", Date().timeIntervalSince(started))
+
             if let error = error {
-                completion(.failure(error))
-                return
+                print("🟥 [\(reqId)] net err (\(elapsed)): \(error.localizedDescription)")
+                completion(.failure(error)); return
             }
-            guard let data = data else { return }
+            guard let http = response as? HTTPURLResponse else {
+                let err = NSError(domain: "HTTP", code: -1, userInfo: [NSLocalizedDescriptionKey: "응답 없음"])
+                print("🟥 [\(reqId)] \(err.localizedDescription)")
+                completion(.failure(err)); return
+            }
+
+            let status = http.statusCode
+            let text = String(data: data ?? Data(), encoding: .utf8) ?? "<no body>"
+            print("🟨 [\(reqId)] status=\(status) (\(elapsed))")
+            print("     resp  : \(text)")
+
+            guard (200...299).contains(status), let data = data else {
+                let err = NSError(domain: "HTTP", code: status, userInfo: [NSLocalizedDescriptionKey: "방 생성 실패(\(status))"])
+                completion(.failure(err)); return
+            }
+
             do {
                 let decoded = try JSONDecoder().decode(ChatRoomResponse.self, from: data)
-                completion(.success(decoded))  // ✅ 올바르게 Result로 리턴
+                print("🟩 [\(reqId)] decode OK → roomId=\(decoded.id)")
+                completion(.success(decoded))
             } catch {
+                print("🟥 [\(reqId)] decode fail: \(error)")
                 completion(.failure(error))
             }
         }.resume()
     }
+}
 
+// 보기 좋은 JSON 로그
+private func prettyJSON(_ dict: [String: Any]) -> String {
+    guard JSONSerialization.isValidJSONObject(dict),
+          let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted]),
+          let s = String(data: data, encoding: .utf8) else { return "\(dict)" }
+    return s.replacingOccurrences(of: "\\/", with: "/")
 }

@@ -2,355 +2,104 @@ import Foundation
 import StompClientLib
 import Starscream
 
-class ChatStompManager: ObservableObject {
+final class ChatStompManager: ObservableObject {
     private var socketClient = StompClientLib()
     @Published var messages: [ChatMessageModel] = []
-    @Published var latestMessage: ChatMessageModel? = nil   // ✅ 추가
+    @Published var latestMessage: ChatMessageModel? = nil
 
-    
     private(set) var currentRoomId: Int = 0
     private(set) var currentUserId: Int = 0
-    
-    func fetchRecentMessages(roomId: Int, completion: @escaping ([ChatMessageModel]) -> Void) {
-        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-            print("❌ fetchRecentMessages: JWT 없음"); completion([]); return
-        }
 
+    // 최근 이력 불러오기 (REST)
+    func fetchRecentMessages(roomId: Int, completion: @escaping ([ChatMessageModel]) -> Void) {
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { completion([]); return }
         func request(_ urlString: String, label: String, then next: (() -> Void)? = nil) {
-            guard let url = URL(string: urlString) else { print("❌ URL 실패: \(urlString)"); next?(); return }
+            guard let url = URL(string: urlString) else { next?(); return }
             var req = URLRequest(url: url)
             req.httpMethod = "GET"
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             req.setValue("application/json", forHTTPHeaderField: "Accept")
 
-            print("🔎 [HTTP] GET(\(label)) \(url.absoluteString)")
             URLSession.shared.dataTask(with: req) { data, resp, error in
-                let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
-                if let error = error { print("❌ 네트워크 에러(\(label)): \(error)"); next?(); return }
-                print("📡 상태코드(\(label)): \(code)")
-
-                guard let data = data else { print("⚠️ 본문 없음(\(label))"); next?(); return }
-                print("📦 바이트(\(label)): \(data.count)")
-
-                if code == 401 || code == 403 {
-                    let raw = String(data: data, encoding: .utf8) ?? "<no body>"
-                    print("🚫 권한 거부(\(label)) RAW: \(raw)")
+                if let _ = error { next?(); return }
+                guard let data = data else { next?(); return }
+                if let http = resp as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
                     next?(); return
                 }
-
                 do {
                     let decoded = try JSONDecoder().decode([ChatMessageResponse].self, from: data)
                     let models = decoded.map(ChatMessageModel.init(from:)).reversed()
                     DispatchQueue.main.async { completion(Array(models)) }
-                } catch {
-                    let preview = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
-                    print("❌ 디코딩 실패(\(label)): \(error)\n🔎 RAW preview: \(preview)")
-                    next?()
-                }
+                } catch { next?() }
             }.resume()
         }
-
-        // 1차: 서버가 기대하는 경로(컨트롤러 그대로)
-        let primary = "\(AppConfig.baseURLSpringBoot)/api/chat/chatroom/\(roomId)/messages?limit=50"
-        // 2차: 혹시 rooms 경로를 쓰고 있다면 폴백
-        let fallback = "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/messages?limit=50"
-
-        request(primary, label: "primary") {
-            request(fallback, label: "fallback") {
-                DispatchQueue.main.async { completion([]) }
-            }
-        }
+        let p = "\(AppConfig.baseURLSpringBoot)/api/chat/chatroom/\(roomId)/messages?limit=50"
+        let f = "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/messages?limit=50"
+        request(p, label: "primary") { request(f, label: "fallback") { DispatchQueue.main.async { completion([]) } } }
     }
 
-
-    func fetchOlderMessages(roomId: Int, before: String, completion: @escaping ([ChatMessageModel]) -> Void) {
-        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-            print("❌ fetchOlderMessages: JWT 없음")
-            completion([]); return
-        }
-
-        var comps = URLComponents(string: "\(AppConfig.baseURLSpringBoot)/api/chat/rooms/\(roomId)/messages/old")!
-        comps.queryItems = [
-            URLQueryItem(name: "before", value: before),
-            URLQueryItem(name: "limit", value: "50")
-        ]
-
-        guard let url = comps.url else { print("❌ URL 생성 실패"); completion([]); return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        print("🔎 [HTTP] GET \(url.absoluteString)")
-        URLSession.shared.dataTask(with: request) { data, resp, error in
-            if let error = error {
-                print("❌ 네트워크 에러: \(error.localizedDescription)")
-                DispatchQueue.main.async { completion([]) }
-                return
-            }
-            if let http = resp as? HTTPURLResponse {
-                print("📡 상태코드: \(http.statusCode)")
-            }
-            guard let data = data else {
-                print("❌ 응답 데이터 없음")
-                DispatchQueue.main.async { completion([]) }
-                return
-            }
-
-            do {
-                let decoded = try JSONDecoder().decode([ChatMessageResponse].self, from: data)
-                let models = decoded.map(ChatMessageModel.init(from:))
-                DispatchQueue.main.async { completion(models) }
-            } catch {
-                print("❌ 디코딩 실패: \(error)")
-                if let raw = String(data: data, encoding: .utf8) { print("📦 RAW: \(raw)") }
-                DispatchQueue.main.async { completion([]) }
-            }
-        }.resume()
-    }
-
-
-    func fetchChatHistory(roomId: Int) {
-            // ✅ 서버에서 과거 메시지 가져오기
-            guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/chatroom/\(roomId)/messages") else { return }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-            URLSession.shared.dataTask(with: request) { data, _, error in
-                guard let data = data, error == nil else { return }
-                do {
-                    let decoded = try JSONDecoder().decode([ChatMessageModel].self, from: data)
-                    DispatchQueue.main.async {
-                        self.messages = decoded
-                    }
-                } catch {
-                    print("❌ 메시지 디코딩 실패: \(error)")
-                }
-            }.resume()
-        }
-    
     func connect(roomId: Int, userId: Int) {
         self.currentRoomId = roomId
         self.currentUserId = userId
-
-        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else {
-            print("❌ [iOS] JWT 토큰 없음")
-            return
-        }
-
-        let urlString = "\(AppConfig.webSocketURL)?token=\(token)"
-        print("🔌 [iOS] WebSocket 연결 URL: \(urlString)")
-
-        guard let url = URL(string: urlString) else {
-            print("❌ [iOS] URL 생성 실패")
-            return
-        }
+        guard let token = UserDefaults.standard.string(forKey: "jwtToken"),
+              let url = URL(string: "\(AppConfig.webSocketURL)?token=\(token)")
+        else { return }
 
         let request = NSMutableURLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        print("🛠️ [iOS] WebSocket Authorization 헤더 추가 완료")
-
-        socketClient.openSocketWithURLRequest(
-            request: request as NSURLRequest,
-            delegate: self
-        )
-
-        print("🚀 [iOS] WebSocket 연결 시도")
+        socketClient.openSocketWithURLRequest(request: request as NSURLRequest, delegate: self)
     }
 
-    /// JSON 딕셔너리를 STOMP로 보내는 래퍼
     func sendJSON(_ destination: String,
                   payload: [String: Any],
                   headers: [String:String] = ["content-type":"application/json"]) {
         guard JSONSerialization.isValidJSONObject(payload),
               let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-              let json = String(data: data, encoding: .utf8) else {
-            print("❌ [STOMP] JSON 직렬화 실패")
-            return
-        }
-
-        // ⬇️ 여기! socketClient 로 보내야 함
-        socketClient.sendMessage(
-            message: json,
-            toDestination: destination,
-            withHeaders: headers,
-            withReceipt: nil
-        )
+              let json = String(data: data, encoding: .utf8) else { return }
+        socketClient.sendMessage(message: json, toDestination: destination, withHeaders: headers, withReceipt: nil)
     }
-    /// clientMessageId 포함 텍스트 전송 (뷰에서 호출)
+
+    /// 톤 변환이 끝난 최종 텍스트를 서버로 전송
     func sendTextMessage(clientMessageId: String, content: String, sentAt: String) {
         let payload: [String: Any] = [
-            "clientMessageId": clientMessageId, // 🔑 중복 방지 키
+            "clientMessageId": clientMessageId,   // 병합 키
             "chatRoomId": currentRoomId,
             "senderId": currentUserId,
             "content": content,
-            "sentAt": sentAt
-            // 필요하면 emotion/fontName/emoji 도 추가 가능
+            "sentAt": sentAt,
+            "source": "client"
         ]
         sendJSON("/app/chat.sendMessage/\(currentRoomId)", payload: payload)
     }
 
-    /// 서버 DTO가 EmotionResult를 받는다면 이 오버로드도 편합니다
-//        func sendMessage(_ m: EmotionResult) {
-//            let payload: [String: Any] = [
-//                "clientMessageId": m.id,
-//                "content": m.client_text,
-//                "senderId": m.senderId ?? 0,
-//                "roomId": m.senderId ?? 0, // 필요 없으면 제거
-//                "sentAt": m.sentAt
-//            ]
-//            sendJSON("/app/chat.send", payload: payload)
-//        }
-//    func sendMessage(_ message: String) {
-//        let json: [String: Any] = [
-//            "chatRoomId": currentRoomId,
-//            "senderId": currentUserId,
-//            "content": message
-//        ]
-//        print("📤 [iOS] 메시지 전송: \(json)")
-//        socketClient.sendJSONForDict(
-//            dict: json as NSDictionary,
-//            toDestination: "/app/chat.sendMessage/\(currentRoomId)"
-//        )
-//    }
-    func updateMessage(clientMessageId: String, emotion: String?, fontName: String?, emoji: String?) {
-        var payload: [String: Any] = [
-            "clientMessageId": clientMessageId,
-            "chatRoomId": currentRoomId,
-            "senderId": currentUserId
-        ]
-        if let e = emotion { payload["emotion"] = e }
-        if let f = fontName { payload["fontName"] = f }
-        if let em = emoji   { payload["emoji"] = em }
-
-        // 서버 매핑에 맞춰 경로만 확인
-        sendJSON("/app/chat.updateMessage/\(currentRoomId)", payload: payload)
-    }
-
     func disconnectStomp() {
-            socketClient.disconnect()
-            print("❌ [iOS] WebSocket 연결 종료")
-        }
-    func sendMessage(_ result: EmotionResult) {
-        let key = result.emotion.lowercased()
-        let resolvedFontName = result.fontName ?? emotionStyles[key]?.fontName ?? "YOnepick-Regular"
-        let resolvedEmoji     = result.emoji ?? emotionStyles[key]?.emoji ?? "🙂"
-
-        let json: [String: Any] = [
-            "chatRoomId": currentRoomId,
-            "senderId": currentUserId,
-            "content": result.client_text,     // style이면 변환문이 들어감
-            "clientMessageId": result.id,
-            "sentAt": result.sentAt,
-            "emotion": result.emotion,
-            "fontName": resolvedFontName,
-            "emoji": resolvedEmoji,
-            "source": result.source            // ✅ 추가
-        ]
-
-        print("📤 [STOMP] 메시지 전송: \(json)")
-        socketClient.sendJSONForDict(
-            dict: json as NSDictionary,
-            toDestination: "/app/chat.sendMessage/\(currentRoomId)"
-        )
+        socketClient.disconnect()
     }
-
-
-
-
-
 }
 
 extension ChatStompManager: StompClientLibDelegate {
     func stompClientDidConnect(client: StompClientLib!) {
-        print("✅ [iOS] STOMP 연결 성공")
-
-        // CONNECT 프레임 수동 전송 ❌ → 라이브러리가 자동 처리함
-
-        // STOMP 서버가 CONNECTED 응답을 보낸 후 구독
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             client.subscribe(destination: "/topic/room.\(self.currentRoomId)")
-            print("📩 [iOS] 채팅방 구독 시작: /topic/room.\(self.currentRoomId)")
         }
     }
+    func stompClientDidDisconnect(client: StompClientLib!) {}
+    func stompClientError(client: StompClientLib!, didReceiveErrorMessage description: String) {}
+    func serverDidSendError(client: StompClientLib!, withErrorMessage description: String, detailedErrorMessage message: String?) {}
+    func serverDidSendReceipt(client: StompClientLib!, withReceiptId receiptId: String) {}
+    func serverDidSendPing() {}
 
-//    func stompClientDidConnect(client: StompClientLib!) {
-//        print("✅ [iOS] STOMP 연결 성공")
-//        
-//        guard let token = UserDefaults.standard.string(forKey: "jwtToken") else { return }
-//        
-//        // 🔑 CONNECT 프레임 작성
-//        let connectFrame = """
-//        CONNECT
-//        accept-version:1.2
-//        host:localhost
-//        Authorization:Bearer \(token)
-//
-//        \u{0000}
-//        """
-//        
-//        // ✅ WebSocket에 직접 전송
-//        if let socket = client.value(forKey: "socket") as? WebSocket {
-//            socket.write(string: connectFrame)
-//            print("🔑 [iOS] STOMP CONNECT 프레임 전송 완료")
-//        }
-//    }
-
-
-
-
-    func stompClientDidDisconnect(client: StompClientLib!) {
-        print("❌ [iOS] STOMP 연결 해제")
-    }
-
-    func stompClientError(client: StompClientLib!, didReceiveErrorMessage description: String) {
-        print("⚠️ [iOS] STOMP 클라이언트 에러: \(description)")
-    }
-
-    func serverDidSendError(client: StompClientLib!,
-                            withErrorMessage description: String,
-                            detailedErrorMessage message: String?) {
-        print("🚨 [iOS] 서버 에러: \(description) | 세부: \(message ?? "없음")")
-    }
-
-    func serverDidSendReceipt(client: StompClientLib!, withReceiptId receiptId: String) {
-        print("🧾 [iOS] Receipt ID: \(receiptId)")
-    }
-
-    func serverDidSendPing() {
-        print("🏓 [iOS] 서버 Ping")
-    }
-
-    func stompClient(
-            client: StompClientLib!,
-            didReceiveMessageWithJSONBody jsonBody: AnyObject?,
-            akaStringBody stringBody: String?,
-            withHeader header: [String : String]?,
-            withDestination destination: String
-        ) {
-            print("📩 [iOS] 메시지 수신: \(stringBody ?? "")")
-            
-            if let data = stringBody?.data(using: .utf8) {
-                do {
-                    var newMessage = try JSONDecoder().decode(ChatMessageModel.self, from: data)
-                    
-                    // 감정 스타일 필드 직접 세팅 (필요하면)
-                    let emotionKey = (newMessage.emotion ?? "neutral").lowercased()
-                    if let style = emotionStyles[emotionKey] {
-                        newMessage.emoji = style.emoji
-                        newMessage.fontName = style.fontName
-                    }
-
-                    
-                    DispatchQueue.main.async {
-                        self.messages.append(newMessage)
-                        self.latestMessage = newMessage
-                    }
-                } catch {
-                    print("❌ [iOS] 메시지 디코딩 실패: \(error)")
-                }
+    func stompClient(client: StompClientLib!,
+                     didReceiveMessageWithJSONBody jsonBody: AnyObject?,
+                     akaStringBody stringBody: String?,
+                     withHeader header: [String : String]?,
+                     withDestination destination: String) {
+        guard let text = stringBody, let data = text.data(using: .utf8) else { return }
+        if let newMessage = try? JSONDecoder().decode(ChatMessageModel.self, from: data) {
+            DispatchQueue.main.async {
+                self.messages.append(newMessage)
+                self.latestMessage = newMessage
             }
         }
+    }
 }
