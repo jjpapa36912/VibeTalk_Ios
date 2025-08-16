@@ -86,13 +86,19 @@ struct FriendListView: View {
     // 뷰모델 friends → 화면용 모델로 표준화 (URL 필드는 현재 없음 → nil)
     private var filteredFriends: [FriendModel] {
         let base = viewModel.friends.map {
-            FriendModel(
+            print("👀 [FriendListView] Friend id=\($0.id), avatar=\($0.absoluteProfileImageUrl ?? "nil")")
+            return FriendModel(
                 id: $0.id,
                 name: ($0.contactName.isEmpty ? $0.appName : $0.contactName),
                 status: $0.statusMessage ?? "상태 메시지 없음",
-                avatarURL: nil // 백엔드에 이미지 URL 생기면 이 필드만 교체
+                avatarURL: $0.absoluteProfileImageUrl  // ✅ String? 그대로
             )
         }
+
+
+
+
+
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return base }
         return base.filter {
@@ -100,6 +106,8 @@ struct FriendListView: View {
             || $0.status.localizedCaseInsensitiveContains(q)
         }
     }
+
+
 }
 
 // 화면 렌더용 표준 모델
@@ -113,43 +121,56 @@ struct FriendModel: Identifiable, Hashable {
 // 카드형 친구 셀 (채팅방 카드와 동일한 톤)
 private struct FriendRowCard: View {
     let friend: FriendModel
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // 그라디언트 아바타 + 이니셜
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.88), Color.purple.opacity(0.88)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+    var avatarView: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.88), Color.purple.opacity(0.88)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .frame(width: 52, height: 52)
+                )
+                .frame(width: 52, height: 52)
 
-                if let urlStr = friend.avatarURL,
-                   let url = URL(string: urlStr) {
-                    AsyncImage(url: url) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        Text(initials(friend.name))
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.95))
-                    }
-                    .frame(width: 48, height: 48)
-                    .clipShape(Circle())
-                } else {
+            if let urlStr = friend.avatarURL,
+               let url = URL(string: urlStr) {
+                AsyncImage(url: url) { img in
+                    img.resizable()
+                        .scaledToFill()
+                        .onAppear {
+                            print("🖼️ [AsyncImage] Successfully loaded: \(urlStr)")
+                        }
+                } placeholder: {
                     Text(initials(friend.name))
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white.opacity(0.95))
+                        .onAppear {
+                            print("⌛ [AsyncImage] Loading placeholder for: \(urlStr)")
+                        }
                 }
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
+
+            } else {
+                Text(initials(friend.name))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.95))
+                    .onAppear {
+                        print("🚫 [AsyncImage] No avatar URL for friend id=\(friend.id), name=\(friend.name)")
+                    }
             }
-            .overlay(
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .frame(width: 52, height: 52)
-            )
+        }
+        .overlay(
+            Circle()
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .frame(width: 52, height: 52)
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            avatarView
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(friend.name)
@@ -165,7 +186,6 @@ private struct FriendRowCard: View {
 
             Spacer()
 
-            // 우측 빠른 액션 아이콘군
             HStack(spacing: 14) {
                 Image(systemName: "bubble.right.fill")
                 Image(systemName: "ellipsis")

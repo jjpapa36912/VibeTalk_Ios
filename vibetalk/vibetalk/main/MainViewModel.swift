@@ -156,9 +156,17 @@ final class MainViewModel: ObservableObject {
                 if let error = error { print("❌ 친구 동기화 실패:", error.localizedDescription); return }
                 if let http = response as? HTTPURLResponse { print("🌐 /api/friends/sync 응답:", http.statusCode) }
                 guard let data = data else { return }
+                // ✅ 서버에서 내려온 JSON 원문 디버깅 출력
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        print("📩 Raw JSON Response:\n\(jsonString)")
+                    }
 
                 do {
                     let decoded = try JSONDecoder().decode([FriendResponse].self, from: data)
+                    // ✅ 디버깅용: 각 친구의 프로필 이미지 URL 확인
+                    for friend in decoded {
+                        _ = friend.absoluteProfileImageUrl   // 접근해야 내부 print 실행됨
+                    }
                     DispatchQueue.main.async {
                         self.friends = decoded
                     }

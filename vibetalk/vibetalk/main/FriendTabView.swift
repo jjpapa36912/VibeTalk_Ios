@@ -73,6 +73,7 @@ struct FriendTabView: View {
             Divider()
 
             // 친구 목록
+            // 친구 목록
             if viewModel.friends.isEmpty {
                 VStack(spacing: 8) {
                     ProgressView()
@@ -83,12 +84,37 @@ struct FriendTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(viewModel.friends) { friend in
-                    HStack {
-                        Image(systemName: "person.circle")
-                            .resizable()
+                    HStack(spacing: 12) {
+                        // ✅ 아바타: absoluteProfileImageUrl 사용
+                        if let urlStr = friend.absoluteProfileImageUrl,
+                           let url = URL(string: urlStr) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .onAppear { print("⌛ [AsyncImage] start: \(urlStr)") }
+                                case .success(let image):
+                                    image.resizable().scaledToFill()
+                                        .onAppear { print("🖼️ [AsyncImage] success: \(urlStr)") }
+                                case .failure(let error):
+                                    Image(systemName: "person.circle")
+                                        .resizable()
+                                        .onAppear { print("❌ [AsyncImage] fail: \(urlStr) – \(error.localizedDescription)") }
+                                @unknown default:
+                                    Image(systemName: "person.circle").resizable()
+                                }
+                            }
                             .frame(width: 40, height: 40)
                             .clipShape(Circle())
-                        VStack(alignment: .leading) {
+                        } else {
+                            Image(systemName: "person.circle")
+                                .resizable()
+                                .frame(width: 40, height: 40)
+                                .clipShape(Circle())
+                                .onAppear { print("🚫 no URL for id=\(friend.id), name=\(friend.contactName.isEmpty ? friend.appName : friend.contactName)") }
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(friend.contactName.isEmpty ? friend.appName : friend.contactName)
                                 .font(.headline)
                             Text(friend.statusMessage ?? "상태 메시지 없음")
@@ -98,6 +124,7 @@ struct FriendTabView: View {
                     }
                 }
             }
+
         }
         // ✅ 시트로 띄우기: onAppear 로깅 포함
         .sheet(isPresented: $showCreateRoom) {

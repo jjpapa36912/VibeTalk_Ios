@@ -4,12 +4,41 @@ import Foundation
 
 struct FriendResponse: Codable, Identifiable {
     let id: Int
-    let phoneNumber: String
     let appName: String
     let contactName: String
     let statusMessage: String?
-    let profileImage: String?
+    let profileImageUrl: String?   // 👈 Swift에서 쓸 프로퍼티 이름
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case appName
+        case contactName
+        case statusMessage
+        case profileImageUrl = "profileImage" // 👈 JSON 키랑 매핑
+    }
+    
+    var absoluteProfileImageUrl: String? {
+        guard let url = profileImageUrl else { return nil }
+
+        #if DEBUG
+        let base = AppConfig.baseURLSpringBoot
+        #else
+        let base = "http://13.124.208.108:8080"
+        #endif
+
+        if url.hasPrefix("http") {
+            return url
+        } else {
+            // base 끝 / 제거, url 앞 / 제거 → 안전하게 이어붙이기
+            let cleanBase = base.hasSuffix("/") ? String(base.dropLast()) : base
+            let cleanUrl = url.hasPrefix("/") ? String(url.dropFirst()) : url
+            return "\(cleanBase)/\(cleanUrl)"
+        }
+    }
+
 }
+
+
 
 struct MainView: View {
     @StateObject private var viewModel = MainViewModel()
