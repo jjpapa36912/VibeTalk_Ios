@@ -13,6 +13,13 @@
 
 import Foundation
 import SwiftUI
+// AppConfig.swift (혹은 Constants.swift)
+enum TestFriendConfig {
+    static let userId: Int = 4                 // DB에 미리 만들어둔 테스트 유저 id
+    static let displayName: String = "VibeTalk Test" // 리스트 표시용 이름
+    static let status: String = "Demo account for review"
+    static let avatarURL: String? = nil              // 있으면 절대 URL 넣기
+}
 
 struct FriendTabView: View {
     @ObservedObject var viewModel: MainViewModel

@@ -7,6 +7,17 @@ struct UserProfile: Codable {
     let statusMessage: String?
     let profileImageUrl: String?
 }
+extension FriendResponse {
+    static var testFriend: FriendResponse {
+        FriendResponse(
+            id: TestFriendConfig.userId,
+            appName: TestFriendConfig.displayName,
+            contactName: TestFriendConfig.displayName,
+            statusMessage: TestFriendConfig.status,
+            profileImageUrl: nil
+        )
+    }
+}
 
 final class MainViewModel: ObservableObject {
     @Published var friends: [FriendResponse] = []
@@ -134,7 +145,7 @@ final class MainViewModel: ObservableObject {
         print("🧑‍💻 시뮬레이터 감지 → 임의 친구 표시")
         DispatchQueue.main.async {
             self.friends = [
-                FriendResponse(id: 2, phoneNumber: "01012345678", appName: "테스트유저", contactName: "테스트", statusMessage: "Hello", profileImage: nil)
+                FriendResponse(id: 2, appName: "테스트유저", contactName: "테스트", statusMessage: "Hello", profileImageUrl: nil)
             ]
         }
         #else
