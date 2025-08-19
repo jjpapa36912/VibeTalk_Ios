@@ -142,53 +142,140 @@ final class MainViewModel: ObservableObject {
     // MARK: - 연락처 동기화 (기존 로직 유지)
     func syncContacts() {
         #if targetEnvironment(simulator)
-        print("🧑‍💻 시뮬레이터 감지 → 임의 친구 표시")
-        DispatchQueue.main.async {
-            self.friends = [
-                FriendResponse(id: 2, appName: "테스트유저", contactName: "테스트", statusMessage: "Hello", profileImageUrl: nil)
-            ]
-        }
+        print("🧑‍💻 시뮬레이터 감지 → 서버 fallback 친구 목록 요청")
+        fetchFallbackFriends() // ✅ 시뮬레이터는 바로 서버 fallback 호출
         #else
         ContactService.shared.fetchContacts { contacts in
-            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends/sync") else { return }
+            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends/sync") else {
+                print("❌ URL 생성 실패 → fallback 호출")
+                DispatchQueue.main.async { self.fetchFallbackFriends() }
+                return
+            }
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            // 서버가 인증 필요하면 아래 주석 해제
             if let token = self.authToken {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
-
-            let json = try? JSONSerialization.data(withJSONObject: contacts, options: .prettyPrinted)
-            request.httpBody = json
+            request.httpBody = try? JSONSerialization.data(withJSONObject: contacts)
 
             URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error = error { print("❌ 친구 동기화 실패:", error.localizedDescription); return }
-                if let http = response as? HTTPURLResponse { print("🌐 /api/friends/sync 응답:", http.statusCode) }
-                guard let data = data else { return }
-                // ✅ 서버에서 내려온 JSON 원문 디버깅 출력
-                    if let jsonString = String(data: data, encoding: .utf8) {
-                        print("📩 Raw JSON Response:\n\(jsonString)")
-                    }
+                if let error = error {
+                    print("❌ 친구 동기화 실패:", error.localizedDescription, "→ fallback 호출")
+                    DispatchQueue.main.async { self.fetchFallbackFriends() }
+                    return
+                }
+                guard let http = response as? HTTPURLResponse, let data = data else {
+                    print("⚠️ 응답 없음 → fallback 호출")
+                    DispatchQueue.main.async { self.fetchFallbackFriends() }
+                    return
+                }
+                print("🌐 /api/friends/sync 응답:", http.statusCode)
 
                 do {
                     let decoded = try JSONDecoder().decode([FriendResponse].self, from: data)
-                    // ✅ 디버깅용: 각 친구의 프로필 이미지 URL 확인
-                    for friend in decoded {
-                        _ = friend.absoluteProfileImageUrl   // 접근해야 내부 print 실행됨
-                    }
                     DispatchQueue.main.async {
-                        self.friends = decoded
+                        if decoded.isEmpty {
+                            print("🧪 연락처 매칭 0명 → fallback 호출")
+                            self.fetchFallbackFriends()
+                        } else {
+                            self.friends = decoded
+                        }
                     }
                 } catch {
-                    print("❌ JSON 디코딩 오류:", error)
-                    print("📦 원문:", String(data: data, encoding: .utf8) ?? "N/A")
+                    print("❌ JSON 디코딩 오류:", error, "→ fallback 호출")
+                    DispatchQueue.main.async { self.fetchFallbackFriends() }
                 }
             }.resume()
         }
         #endif
     }
+
+    /// ✅ 연락처 매칭이 0명일 때 서버에서 ‘리뷰용 사용자’ 목록을 받아온다.
+//    @MainActor
+    private func fetchFallbackFriends() {
+        guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends/fallback") else { return }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token = self.authToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        URLSession.shared.dataTask(with: req) { data, resp, err in
+            if let err = err {
+                print("❌ fallback 친구 목록 요청 실패:", err.localizedDescription)
+                return
+            }
+            guard let http = resp as? HTTPURLResponse, http.statusCode == 200, let data = data else {
+                print("⚠️ fallback 친구 목록 응답 이상")
+                return
+            }
+            do {
+                let list = try JSONDecoder().decode([FriendResponse].self, from: data)
+                DispatchQueue.main.async {
+                    self.friends = list
+                    // UX: 리뷰 편의 – 한 명만 내려오면 자동 선택되게 해도 됨
+                    // if let only = list.only, only.id != nil { ... }
+                }
+            } catch {
+                print("❌ fallback JSON 디코딩 실패:", error)
+            }
+        }.resume()
+    }
+
+
+//    func syncContacts() {
+//        #if targetEnvironment(simulator)
+//        print("🧑‍💻 시뮬레이터 감지 → 임의 친구 표시")
+//        DispatchQueue.main.async {
+//            self.friends = [
+//                FriendResponse(id: 2, appName: "테스트유저", contactName: "테스트", statusMessage: "Hello", profileImageUrl: nil)
+//            ]
+//        }
+//        #else
+//        ContactService.shared.fetchContacts { contacts in
+//            guard let url = URL(string: "\(AppConfig.baseURLSpringBoot)/api/friends/sync") else { return }
+//
+//            var request = URLRequest(url: url)
+//            request.httpMethod = "POST"
+//            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+//            // 서버가 인증 필요하면 아래 주석 해제
+//            if let token = self.authToken {
+//                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+//            }
+//
+//            let json = try? JSONSerialization.data(withJSONObject: contacts, options: .prettyPrinted)
+//            request.httpBody = json
+//
+//            URLSession.shared.dataTask(with: request) { data, response, error in
+//                if let error = error { print("❌ 친구 동기화 실패:", error.localizedDescription); return }
+//                if let http = response as? HTTPURLResponse { print("🌐 /api/friends/sync 응답:", http.statusCode) }
+//                guard let data = data else { return }
+//                // ✅ 서버에서 내려온 JSON 원문 디버깅 출력
+//                    if let jsonString = String(data: data, encoding: .utf8) {
+//                        print("📩 Raw JSON Response:\n\(jsonString)")
+//                    }
+//
+//                do {
+//                    let decoded = try JSONDecoder().decode([FriendResponse].self, from: data)
+//                    // ✅ 디버깅용: 각 친구의 프로필 이미지 URL 확인
+//                    for friend in decoded {
+//                        _ = friend.absoluteProfileImageUrl   // 접근해야 내부 print 실행됨
+//                    }
+//                    DispatchQueue.main.async {
+//                        self.friends = decoded
+//                    }
+//                } catch {
+//                    print("❌ JSON 디코딩 오류:", error)
+//                    print("📦 원문:", String(data: data, encoding: .utf8) ?? "N/A")
+//                }
+//            }.resume()
+//        }
+//        #endif
+//    }
 
     // MARK: - 채팅방 목록
     func fetchChatRooms() {

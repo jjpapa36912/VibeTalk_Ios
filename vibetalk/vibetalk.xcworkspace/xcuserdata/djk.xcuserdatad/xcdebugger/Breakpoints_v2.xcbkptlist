@@ -30,10 +30,10 @@
             filePath = "vibetalk/main/MainViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "176"
-            endingLineNumber = "176"
-            landmarkName = "syncContacts()"
-            landmarkType = "7">
+            startingLineNumber = "263"
+            endingLineNumber = "263"
+            landmarkName = "MainViewModel"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -46,8 +46,8 @@
             filePath = "vibetalk/main/MainViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "181"
-            endingLineNumber = "181"
+            startingLineNumber = "268"
+            endingLineNumber = "268"
             landmarkName = "MainViewModel"
             landmarkType = "3">
          </BreakpointContent>
@@ -62,10 +62,10 @@
             filePath = "vibetalk/main/MainViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "155"
-            endingLineNumber = "155"
-            landmarkName = "syncContacts()"
-            landmarkType = "7">
+            startingLineNumber = "242"
+            endingLineNumber = "242"
+            landmarkName = "MainViewModel"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -78,10 +78,10 @@
             filePath = "vibetalk/main/MainViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "168"
-            endingLineNumber = "168"
-            landmarkName = "syncContacts()"
-            landmarkType = "7">
+            startingLineNumber = "255"
+            endingLineNumber = "255"
+            landmarkName = "MainViewModel"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -96,8 +96,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "57"
             endingLineNumber = "57"
-            landmarkName = "MainViewModel"
-            landmarkType = "3">
+            landmarkName = "fetchUserProfile()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -112,7 +112,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "66"
             endingLineNumber = "66"
-            landmarkName = "updateUserProfile(statusMessage:image:completion:)"
+            landmarkName = "fetchUserProfile()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -128,7 +128,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "65"
             endingLineNumber = "65"
-            landmarkName = "updateUserProfile(statusMessage:image:completion:)"
+            landmarkName = "fetchUserProfile()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -222,6 +222,22 @@
                   endingLineNumber = "17">
                </Location>
             </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B7D95E5A-4690-42D7-BE02-2AF9A60B9881"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "vibetalk/main/MainViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "198"
+            endingLineNumber = "198"
+            landmarkName = "fetchFallbackFriends()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
