@@ -17,5 +17,7 @@ final class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "jwtToken")
         isLoggedIn = false
         selectedTab = 0
+        path = NavigationPath()          // ✅ 네비 스택 비우기
+
     }
 }
