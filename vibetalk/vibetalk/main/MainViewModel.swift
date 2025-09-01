@@ -1,5 +1,7 @@
 import Foundation
 import UIKit
+import Contacts
+
 
 struct UserProfile: Codable {
     let id: Int?
@@ -24,6 +26,37 @@ final class MainViewModel: ObservableObject {
     @Published var userProfile: UserProfile? = nil
     @Published var userId: Int = 0
     @Published var chatRooms: [ChatRoomResponse] = []
+
+    private var hasContactsConsent: Bool {
+        UserDefaults.standard.bool(forKey: "consent.contacts.upload")
+    }
+
+    func recordContactsConsent() {
+        UserDefaults.standard.set(true, forKey: "consent.contacts.upload")
+        UserDefaults.standard.set("v1.0", forKey: "consent.version")
+    }
+
+    func ensureContactsSyncFlow(presentConsent: @escaping () -> Void,
+                                presentSettingsGuide: @escaping () -> Void) {
+        // 1) 동의 없으면 2차 동의 시트 보여주기
+        guard hasContactsConsent else { presentConsent(); return }
+
+        // 2) 권한 상태 확인
+        switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .authorized:
+            self.syncContacts()                    // 실제 업로드 (기존 메서드 사용)
+        case .notDetermined:
+            CNContactStore().requestAccess(for: .contacts) { granted, _ in
+                DispatchQueue.main.async {
+                    if granted { self.syncContacts() }
+                }
+            }
+        case .denied, .restricted:
+            presentSettingsGuide()
+        @unknown default:
+            presentSettingsGuide()
+        }
+    }
 
     // MARK: - Helpers
     private var authToken: String? {
@@ -128,7 +161,7 @@ final class MainViewModel: ObservableObject {
             if let updated = try? JSONDecoder().decode(UserProfile.self, from: data) {
                 DispatchQueue.main.async {
                     self.userProfile = updated
-                    self.syncContacts()
+//                    self.syncContacts()
                     completion?()
                 }
             } else {

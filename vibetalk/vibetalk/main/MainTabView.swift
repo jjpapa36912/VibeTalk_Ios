@@ -39,7 +39,7 @@ struct MainTabView: View {
                 print("🌐 [MainTabView] onAppear → 친구/프로필 로딩")
                 badgeViewModel.connectForUnread(userId: viewModel.userId)
                 viewModel.fetchUserProfile()
-                viewModel.syncContacts()
+//                viewModel.syncContacts()
             }
 //            .onDisappear {
 //                print("🔌 [MainTabView] onDisappear → STOMP 해제")

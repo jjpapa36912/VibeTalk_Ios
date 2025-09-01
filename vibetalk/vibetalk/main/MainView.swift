@@ -84,7 +84,7 @@ struct MainView: View {
                 }
             }
             .onAppear {
-                viewModel.syncContacts()
+//                viewModel.syncContacts()
                 viewModel.fetchUserProfile()
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("profileUpdated"))) { _ in

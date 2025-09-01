@@ -8,6 +8,7 @@ struct CreateChatRoomView: View {
 
     let friends: [FriendResponse]
     let onRoomCreated: (ChatRoomResponse) -> Void
+    @StateObject private var banner = BannerAdController()
 
     // ✅ 이 조건만 참이면 버튼 활성화
     private var canCreate: Bool {
@@ -65,6 +66,14 @@ struct CreateChatRoomView: View {
             .disabled(!canCreate)  // ← canCreate를 단일 진실로 사용
         }
         .navigationTitle("그룹 채팅")
+        // ✅ 하단 배너 (콘텐츠를 위로 밀어주므로 가림 없음)
+                .safeAreaInset(edge: .bottom) {
+                    BannerAdView(controller: banner)
+                        .frame(height: 50)              // 일반 배너 높이
+                        .frame(maxWidth: .infinity)
+                        .background(.ultraThinMaterial) // 구분감
+                        .shadow(radius: 1)
+                }
     }
 
     // MARK: - 모드 선택 + 안내 문구

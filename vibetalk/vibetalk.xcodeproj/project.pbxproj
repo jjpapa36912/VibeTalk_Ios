@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DA592E84CED18F57B32465B1 /* Pods_vibetalk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C64418F27244304451065ECA /* Pods_vibetalk.framework */; };
+		975E7F6534D9C9BA848E4FC0 /* Pods_vibetalk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FE548C17148BDFABCC83450 /* Pods_vibetalk.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0A80CFD62E379E65009B998A /* vibetalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vibetalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.release.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.release.xcconfig"; sourceTree = "<group>"; };
-		432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.debug.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.debug.xcconfig"; sourceTree = "<group>"; };
-		C64418F27244304451065ECA /* Pods_vibetalk.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vibetalk.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FE548C17148BDFABCC83450 /* Pods_vibetalk.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vibetalk.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		24CCEB720641BEE504CD3ED3 /* Pods-vibetalk.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.release.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.release.xcconfig"; sourceTree = "<group>"; };
+		69BF864D76A359F4174B63AF /* Pods-vibetalk.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vibetalk.debug.xcconfig"; path = "Target Support Files/Pods-vibetalk/Pods-vibetalk.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -43,7 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DA592E84CED18F57B32465B1 /* Pods_vibetalk.framework in Frameworks */,
+				975E7F6534D9C9BA848E4FC0 /* Pods_vibetalk.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -56,7 +56,7 @@
 				0A80CFD82E379E65009B998A /* vibetalk */,
 				0A80CFD72E379E65009B998A /* Products */,
 				5EA99D7DAA07E6460F3381AF /* Pods */,
-				BB65A0872DA0AA852B08BE53 /* Frameworks */,
+				5C5C786819E11D694995CB28 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -68,21 +68,21 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		5C5C786819E11D694995CB28 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0FE548C17148BDFABCC83450 /* Pods_vibetalk.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		5EA99D7DAA07E6460F3381AF /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */,
-				1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */,
+				69BF864D76A359F4174B63AF /* Pods-vibetalk.debug.xcconfig */,
+				24CCEB720641BEE504CD3ED3 /* Pods-vibetalk.release.xcconfig */,
 			);
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		BB65A0872DA0AA852B08BE53 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				C64418F27244304451065ECA /* Pods_vibetalk.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -92,11 +92,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0A80CFE12E379E67009B998A /* Build configuration list for PBXNativeTarget "vibetalk" */;
 			buildPhases = (
-				9A1E25CAD662EBF2116D5FA6 /* [CP] Check Pods Manifest.lock */,
+				4DFD4AD324D4D93BC48CE855 /* [CP] Check Pods Manifest.lock */,
 				0A80CFD22E379E65009B998A /* Sources */,
 				0A80CFD32E379E65009B998A /* Frameworks */,
 				0A80CFD42E379E65009B998A /* Resources */,
-				ED1C70F7537C93BB3B6950E0 /* [CP] Embed Pods Frameworks */,
+				A8A8198C10317BC4EFC9AEA0 /* [CP] Embed Pods Frameworks */,
+				53F4A58CC48DC6D66FFF6FE2 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -156,7 +157,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		9A1E25CAD662EBF2116D5FA6 /* [CP] Check Pods Manifest.lock */ = {
+		4DFD4AD324D4D93BC48CE855 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -178,7 +179,28 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		ED1C70F7537C93BB3B6950E0 /* [CP] Embed Pods Frameworks */ = {
+		53F4A58CC48DC6D66FFF6FE2 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-vibetalk/Pods-vibetalk-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		A8A8198C10317BC4EFC9AEA0 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -337,19 +359,20 @@
 		};
 		0A80CFE22E379E67009B998A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 432B69AC592FF741B5B9F283 /* Pods-vibetalk.debug.xcconfig */;
+			baseConfigurationReference = 69BF864D76A359F4174B63AF /* Pods-vibetalk.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = vibetalk/vibetalk.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = vibetalk/Info.plist;
-				INFOPLIST_KEY_NSContactsUsageDescription = "친구 목록을 불러오기 위해 연락처 접근 권한이 필요합니다.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "친구 찾기 기능을 위해 연락처 접근 권한이 필요합니다. 동의 시 연락처는 서버에 업로드되며 친구 추천,검색 목적에만 사용됩니다.동의하지 않으면 업로드되지 않습니다.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "친구 찾기 기능을 위해 연락처를 불러옵니다. 동의하신 경우에 한해 연락처가 서버로 업로드되어 일치 여부 확인에만 사용됩니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -360,7 +383,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 6.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jjpapa.vibetalk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -371,19 +394,20 @@
 		};
 		0A80CFE32E379E67009B998A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1090C98E6343A5F7AEE42550 /* Pods-vibetalk.release.xcconfig */;
+			baseConfigurationReference = 24CCEB720641BEE504CD3ED3 /* Pods-vibetalk.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = vibetalk/vibetalk.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 9KDUS59PR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = vibetalk/Info.plist;
-				INFOPLIST_KEY_NSContactsUsageDescription = "친구 목록을 불러오기 위해 연락처 접근 권한이 필요합니다.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "친구 찾기 기능을 위해 연락처 접근 권한이 필요합니다. 동의 시 연락처는 서버에 업로드되며 친구 추천,검색 목적에만 사용됩니다.동의하지 않으면 업로드되지 않습니다.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "친구 찾기 기능을 위해 연락처를 불러옵니다. 동의하신 경우에 한해 연락처가 서버로 업로드되어 일치 여부 확인에만 사용됩니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -394,7 +418,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 6.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jjpapa.vibetalk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

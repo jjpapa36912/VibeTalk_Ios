@@ -8,6 +8,6 @@ target 'vibetalk' do
 pod "StompClientLib"
 # Firebase Core
   pod 'Firebase/Core'
-  # Firebase Messaging (푸시 알림)
+  pod 'Google-Mobile-Ads-SDK'  # Firebase Messaging (푸시 알림)
   pod 'Firebase/Messaging'
 end

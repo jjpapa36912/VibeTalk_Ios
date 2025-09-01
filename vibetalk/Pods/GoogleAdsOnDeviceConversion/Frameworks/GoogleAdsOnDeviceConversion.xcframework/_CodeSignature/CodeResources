@@ -6,7 +6,7 @@
 	<dict>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/GoogleAdsOnDeviceConversion</key>
 		<data>
-		3wdHhDlfbs3/5IULsplMB4aAg2E=
+		v9HwZhE7UpoNLHDELknTk2QVl70=
 		</data>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/Headers/GoogleAdsOnDeviceConversion.h</key>
 		<data>
@@ -22,7 +22,7 @@
 		</data>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/Info.plist</key>
 		<data>
-		1u7/y77UFsIFP/gUNpwWPUrrwX4=
+		WwM6a7AFWKbd4/qpprfh05+d+dw=
 		</data>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/Modules/module.modulemap</key>
 		<data>
@@ -30,7 +30,7 @@
 		</data>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/GoogleAdsOnDeviceConversion</key>
 		<data>
-		oRYR+qUZQP4xY/xn3piFFISYcOU=
+		YaB+d4YVw4OkNxbnPaO+MXVuJ6w=
 		</data>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/Headers/GoogleAdsOnDeviceConversion.h</key>
 		<data>
@@ -46,7 +46,7 @@
 		</data>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/Info.plist</key>
 		<data>
-		1u7/y77UFsIFP/gUNpwWPUrrwX4=
+		aiakROU36KulUvJeC6iC67a5NvQ=
 		</data>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/Modules/module.modulemap</key>
 		<data>
@@ -59,11 +59,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			3wdHhDlfbs3/5IULsplMB4aAg2E=
+			v9HwZhE7UpoNLHDELknTk2QVl70=
 			</data>
 			<key>hash2</key>
 			<data>
-			Osveu8cb9rrX/IehgphLGICoylg92DdcW+TZTJCnGzQ=
+			RWRCA526nr2D2VqsAlixFcUD2axdtW3vkoLGwBwUHcE=
 			</data>
 		</dict>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/Headers/GoogleAdsOnDeviceConversion.h</key>
@@ -103,11 +103,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			1u7/y77UFsIFP/gUNpwWPUrrwX4=
+			WwM6a7AFWKbd4/qpprfh05+d+dw=
 			</data>
 			<key>hash2</key>
 			<data>
-			jG2qbwhnelMpIrs5U9EWKigJShAlL/J9pk0bBbQb5nU=
+			1TlvnDXIXjZobLC6NAt0aQpMwQF4IP2yjgW2STtjMqY=
 			</data>
 		</dict>
 		<key>ios-arm64/GoogleAdsOnDeviceConversion.framework/Modules/module.modulemap</key>
@@ -125,11 +125,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			oRYR+qUZQP4xY/xn3piFFISYcOU=
+			YaB+d4YVw4OkNxbnPaO+MXVuJ6w=
 			</data>
 			<key>hash2</key>
 			<data>
-			EQ/+QVtSy7seMKIWMN0W8OrOqkx6CNmPpzK95PtWOms=
+			+6qtXNlCDQXK+vqcwLRgiUbt4qd4PYoY9I8D6JWOQqw=
 			</data>
 		</dict>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/Headers/GoogleAdsOnDeviceConversion.h</key>
@@ -169,11 +169,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			1u7/y77UFsIFP/gUNpwWPUrrwX4=
+			aiakROU36KulUvJeC6iC67a5NvQ=
 			</data>
 			<key>hash2</key>
 			<data>
-			jG2qbwhnelMpIrs5U9EWKigJShAlL/J9pk0bBbQb5nU=
+			GMD+p1rfijlF+Pat4Si61T/DVXapzW+YjW5JAIzaT5I=
 			</data>
 		</dict>
 		<key>ios-arm64_x86_64-simulator/GoogleAdsOnDeviceConversion.framework/Modules/module.modulemap</key>

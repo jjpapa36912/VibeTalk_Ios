@@ -4,41 +4,39 @@
 <dict>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
-    
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>remote-notification</string>
-    </array>
-
-    
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-2190585582842197~3073976544</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>YOnepick-Regular.ttf</string>
+		<string>Giants-Regular.ttf</string>
+		<string>ChosunCentennial_ttf.ttf</string>
+		<string>surprise.ttf</string>
+		<string>curiosity.ttf</string>
+		<string>Dongle-Bold.ttf</string>
+		<string>dimibang.otf</string>
+	</array>
+    
+    
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>음성 인식 기능을 제공하기 위해 음성 데이터를 처리합니다. 동의하시는 경우에만 사용되며, 설정에서 언제든지 변경할 수 있습니다.</string>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>음성 인식 및 음성 입력을 위해 마이크가 필요합니다.</string>
+
+    <key>NSContactsUsageDescription</key>
+    <string>친구 찾기 기능을 위해 연락처를 업로드·비교합니다. 동의 시에만 업로드되며 목적 외 사용은 하지 않습니다.</string>
+
+    
+    
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
 	</array>
-    
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>이 앱은 음성 인식을 사용하여 메시지를 텍스트로 변환합니다.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>이 앱은 마이크를 사용하여 음성을 녹음합니다.</string>
-    
-    <key>UIAppFonts</key>
-    <array>
-        <string>YOnepick-Regular.ttf</string>
-        <string>Giants-Regular.ttf</string>
-        <string>ChosunCentennial_ttf.ttf</string>
-        <string>surprise.ttf</string>
-            <string>curiosity.ttf</string>
-        <string>Dongle-Bold.ttf</string>
-        <string>dimibang.otf</string>
-    </array>
-
-
-    
-    
 </dict>
 </plist>

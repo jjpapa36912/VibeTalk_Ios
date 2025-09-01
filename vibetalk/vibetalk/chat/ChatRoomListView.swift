@@ -70,6 +70,7 @@ struct ChatRoomListView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = ChatRoomListViewModel()
     let currentUserId: Int
+    @StateObject private var banner = BannerAdController()
 
     var body: some View {
         NavigationStack(path: $appState.path) {
@@ -103,6 +104,14 @@ struct ChatRoomListView: View {
                 )
                 .environmentObject(appState)
             }
+            // ✅ 하단 배너 (콘텐츠를 위로 밀어주므로 가림 없음)
+                    .safeAreaInset(edge: .bottom) {
+                        BannerAdView(controller: banner)
+                            .frame(height: 50)              // 일반 배너 높이
+                            .frame(maxWidth: .infinity)
+                            .background(.ultraThinMaterial) // 구분감
+                            .shadow(radius: 1)
+                    }
         }
     }
 }

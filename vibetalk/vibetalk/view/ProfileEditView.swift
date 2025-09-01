@@ -1,16 +1,20 @@
 import SwiftUI
 
-import SwiftUI
+import SafariServices   // ← 추가
 
 struct ProfileEditView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState        // ✅ 추가
+    @State private var showPolicyWeb = false       // Safari로 정책 페이지 열기
+    @State private var showPolicyDetail = false    // 인앱 상세 고지(목적/항목/보관 등)
+
 
     @State private var statusMessage: String
     @State private var selectedImage: UIImage? = nil
     @State private var showImagePicker = false
     @State private var isSaving = false
     @State private var isLoading = true
+    @StateObject private var banner = BannerAdController()
 
     // 🔻 추가: 계정 삭제 UI 상태
     @State private var showDeleteConfirm = false
@@ -32,20 +36,25 @@ struct ProfileEditView: View {
             if isLoading {
                 ProgressView("불러오는 중...")
             } else {
+                // 대체: 고정 아이콘만 표시
+                Image(systemName: "person.circle")
+                    .resizable()
+                    .frame(width: 100, height: 100)
+                    .clipShape(Circle())
                 // ✅ 프로필 이미지
-                Button(action: { showImagePicker = true }) {
-                    if let selectedImage = selectedImage {
-                        Image(uiImage: selectedImage)
-                            .resizable()
-                            .frame(width: 100, height: 100)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.circle")
-                            .resizable()
-                            .frame(width: 100, height: 100)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
+//                Button(action: { showImagePicker = true }) {
+//                    if let selectedImage = selectedImage {
+//                        Image(uiImage: selectedImage)
+//                            .resizable()
+//                            .frame(width: 100, height: 100)
+//                            .clipShape(Circle())
+//                    } else {
+//                        Image(systemName: "person.circle")
+//                            .resizable()
+//                            .frame(width: 100, height: 100)
+//                    }
+//                }
+//                .buttonStyle(PlainButtonStyle())
 
                 // ✅ 상태 메시지
                 TextField("상태 메시지 입력", text: $statusMessage)
@@ -105,15 +114,78 @@ struct ProfileEditView: View {
                     }
                 }
                 // ─────────────────────────────────────────
+                // ─────────────────────────────────────────
+                // 🔐 개인정보/정책 섹션
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider().padding(.top, 4)
+                    Text("개인정보 및 정책")
+                        .font(.headline)
+
+                    // 3-1) 개인정보 처리방침(웹으로 열기)
+                    Button {
+                        showPolicyWeb = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "doc.text")
+                            Text("개인정보 처리방침 보기")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    }
+
+                    // 3-2) 데이터 수집 고지(인앱 안내)
+                    Button {
+                        showPolicyDetail = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "shield.lefthalf.filled")
+                            Text("데이터 수집 및 이용 안내")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    }
+
+                    // 3-3) 문의 이메일(mailto)
+                    Link(destination: URL(string: "mailto:jjpapa36912@gmail.com?subject=VibeTalk%20Privacy%20Inquiry")!) {
+                        HStack {
+                            Image(systemName: "envelope")
+                            Text("문의: jjpapa36912@gmail.com")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    }
+                }
+                .padding(.top, 4)
+                // ─────────────────────────────────────────
+
             }
 
             Spacer()
         }
         .padding()
         .navigationTitle("내 프로필 수정")
-        .sheet(isPresented: $showImagePicker) {
-            ImagePicker(selectedImage: $selectedImage)
+//        .sheet(isPresented: $showImagePicker) {
+//            ImagePicker(selectedImage: $selectedImage)
+//        }
+        // Safari로 정책 페이지 열기
+        .sheet(isPresented: $showPolicyWeb) {
+            SFSafariViewControllerWrapper(url: URL(string: "https://jjpapa36912.tistory.com/87")!)
         }
+
+        // 인앱 상세 고지(목적/항목/보관기간/제3자/권리/문의)
+        .sheet(isPresented: $showPolicyDetail) {
+            PrivacyDetailView()
+        }
+
         .overlay {
             if isDeleting {
                 // 삭제 중 오버레이
@@ -122,6 +194,14 @@ struct ProfileEditView: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
         }
+        // ✅ 하단 배너 (콘텐츠를 위로 밀어주므로 가림 없음)
+                .safeAreaInset(edge: .bottom) {
+                    BannerAdView(controller: banner)
+                        .frame(height: 50)              // 일반 배너 높이
+                        .frame(maxWidth: .infinity)
+                        .background(.ultraThinMaterial) // 구분감
+                        .shadow(radius: 1)
+                }
         .onAppear(perform: fetchCurrentProfile)
     }
 
@@ -164,23 +244,23 @@ struct ProfileEditView: View {
                     print("✅ [Edit] 디코딩 성공: \(profile)")
                     self.statusMessage = profile.statusMessage ?? ""
 
-                    if let imageUrl = profile.profileImageUrl,
-                       let url = URL(string: "\(AppConfig.baseURLSpringBoot)\(imageUrl)") {
-                        print("🖼️ [Edit] 프로필 이미지 URL:", url)
-
-                        URLSession.shared.dataTask(with: url) { data, _, error in
-                            if let data = data, let uiImage = UIImage(data: data) {
-                                DispatchQueue.main.async {
-                                    self.selectedImage = uiImage
-                                    print("✅ [Edit] 이미지 다운로드 성공")
-                                }
-                            } else {
-                                print("⚠️ [Edit] 이미지 다운로드 실패:", error?.localizedDescription ?? "데이터 없음")
-                            }
-                        }.resume()
-                    } else {
-                        print("ℹ️ [Edit] 프로필 이미지 없음")
-                    }
+//                    if let imageUrl = profile.profileImageUrl,
+//                       let url = URL(string: "\(AppConfig.baseURLSpringBoot)\(imageUrl)") {
+//                        print("🖼️ [Edit] 프로필 이미지 URL:", url)
+//
+//                        URLSession.shared.dataTask(with: url) { data, _, error in
+//                            if let data = data, let uiImage = UIImage(data: data) {
+//                                DispatchQueue.main.async {
+//                                    self.selectedImage = uiImage
+//                                    print("✅ [Edit] 이미지 다운로드 성공")
+//                                }
+//                            } else {
+//                                print("⚠️ [Edit] 이미지 다운로드 실패:", error?.localizedDescription ?? "데이터 없음")
+//                            }
+//                        }.resume()
+//                    } else {
+//                        print("ℹ️ [Edit] 프로필 이미지 없음")
+//                    }
 
                     self.isLoading = false
                 }
@@ -212,14 +292,14 @@ struct ProfileEditView: View {
         body.append("Content-Disposition: form-data; name=\"statusMessage\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(statusMessage)\r\n".data(using: .utf8)!)
 
-        // 이미지
-        if let image = selectedImage, let imageData = image.jpegData(compressionQuality: 0.8) {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"profileImage\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-            body.append(imageData)
-            body.append("\r\n".data(using: .utf8)!)
-        }
+//        // 이미지
+//        if let image = selectedImage, let imageData = image.jpegData(compressionQuality: 0.8) {
+//            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+//            body.append("Content-Disposition: form-data; name=\"profileImage\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
+//            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+//            body.append(imageData)
+//            body.append("\r\n".data(using: .utf8)!)
+//        }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
@@ -241,7 +321,7 @@ struct ProfileEditView: View {
 
                 // ✅ 메인 화면 데이터 갱신
                 viewModel.fetchUserProfile()
-                viewModel.syncContacts()
+//                viewModel.syncContacts()
 
                 dismiss()
             }
@@ -284,4 +364,42 @@ struct ProfileEditView: View {
                 deleteError = "네트워크 오류: \(error.localizedDescription)"
             }
         }
+}
+// Safari Wrapper
+struct SFSafariViewControllerWrapper: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> SFSafariViewController { SFSafariViewController(url: url) }
+    func updateUIViewController(_ vc: SFSafariViewController, context: Context) {}
+}
+
+// 인앱 상세 고지(심사용 핵심 항목 명시)
+struct PrivacyDetailView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("데이터 수집 목적") {
+                    Text("친구 찾기 기능 제공(내 연락처와 앱 사용자 일치 여부 확인)")
+                }
+                Section("수집 항목") {
+                    Text("연락처의 전화번호/이메일(최소 수집).")
+                }
+                
+                Section("제3자 제공") {
+                    Text("제3자에게 제공하지 않습니다.")
+                }
+                Section("사용자 권리") {
+                    Text("데이터 열람/정정/삭제 요청 가능. 이메일로 요청하세요.")
+                }
+                Section("문의 이메일") {
+                    Link("jjpapa36912@gmail.com",
+                         destination: URL(string: "mailto:jjpapa36912@gmail.com")!)
+                }
+                Section("정책 전문") {
+                    Link("개인정보 처리방침 전체보기",
+                         destination: URL(string: "https://jjpapa36912.tistory.com/87")!)
+                }
+            }
+            .navigationTitle("데이터 수집 및 이용 안내")
+        }
+    }
 }
